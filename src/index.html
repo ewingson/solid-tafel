@@ -1,0 +1,248 @@
+<!-- Tafel Calendar App — First Iteration -->
+<!-- Auth + Debug Display -->
+<!-- inspired by https://github.com/ewingson/solid-note-experiment -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tafel Calendar — Auth + Debug</title>
+  <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+  <style>
+    body { font-family: system-ui, sans-serif; }
+    main { max-width: 900px; margin: 0 auto; padding: 1rem; }
+    h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.5rem; }
+    h2 { color: #34495e; margin-top: 1.5rem; }
+    
+    #loading { 
+      text-align: center; 
+      padding: 2rem; 
+      color: #7f8c8d;
+      font-style: italic;
+    }
+    
+    #auth-guest {
+      background: #ecf0f1;
+      padding: 1.5rem;
+      border-left: 4px solid #e74c3c;
+      border-radius: 4px;
+    }
+    
+    #auth-user {
+      background: #d5f4e6;
+      padding: 1.5rem;
+      border-left: 4px solid #27ae60;
+      border-radius: 4px;
+    }
+    
+    .user-hello { 
+      font-size: 1.2rem; 
+      margin-bottom: 1rem;
+    }
+    
+    .user-hello strong { color: #27ae60; }
+    
+    #debug-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    
+    #debug-table td {
+      padding: 0.75rem;
+      border: 1px solid #bdc3c7;
+    }
+    
+    #debug-table td:first-child {
+      font-weight: bold;
+      background: #ecf0f1;
+      width: 200px;
+      word-break: break-word;
+    }
+    
+    #debug-table td:last-child {
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      word-break: break-all;
+      max-width: 600px;
+    }
+    
+    .button-row {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    button {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.3s;
+    }
+    
+    #login-button {
+      background: #3498db;
+      color: white;
+    }
+    
+    #login-button:hover {
+      background: #2980b9;
+    }
+    
+    #logout-button {
+      background: #e74c3c;
+      color: white;
+    }
+    
+    #logout-button:hover {
+      background: #c0392b;
+    }
+    
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    #status {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      border-radius: 4px;
+      color: #856404;
+      min-height: 1.4rem;
+      font-size: 0.95rem;
+    }
+    
+    #status.error {
+      background: #f8d7da;
+      border-left-color: #dc3545;
+      color: #721c24;
+    }
+    
+    #status.success {
+      background: #d4edda;
+      border-left-color: #28a745;
+      color: #155724;
+    }
+    
+    .footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid #bdc3c7;
+      color: #7f8c8d;
+      font-size: 0.85rem;
+    }
+    
+    code {
+      background: #f5f5f5;
+      padding: 0.2rem 0.4rem;
+      border-radius: 2px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+<main>
+
+  <h1>🥔 Tafel Calendar App — v0.1</h1>
+  <p><em>First iteration: OIDC Authentication + Debug Display</em></p>
+
+  <!-- ===== LOADING STATE ===== -->
+  <div id="loading">
+    <p>⏳ Initializing Solid session…</p>
+  </div>
+
+  <!-- ===== GUEST STATE (Not Logged In) ===== -->
+  <div id="auth-guest" hidden>
+    <h2>Welcome</h2>
+    <p>You are not logged in to a Solid Pod.</p>
+    <p>To continue, please log in with your Solid Identity Provider (IdP).</p>
+    <div class="button-row">
+      <button id="login-button">🔐 Log In with Solid</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <!-- ===== AUTHENTICATED STATE ===== -->
+  <div id="auth-user" hidden>
+    
+    <div class="user-hello">
+      Hello, <strong id="username">User</strong>! ✨
+    </div>
+
+    <h2>Debug: Your Solid Profile</h2>
+    <p>Below are 7 key parameters from your Solid Pod. These are used internally for app configuration.</p>
+
+    <table id="debug-table">
+      <tr>
+        <td>1. WebID</td>
+        <td><span id="param-webid">—</span></td>
+      </tr>
+      <tr>
+        <td>2. Display Name (vCard:fn)</td>
+        <td><span id="param-fn">—</span></td>
+      </tr>
+      <tr>
+        <td>3. Preferences File</td>
+        <td><span id="param-pref">—</span></td>
+      </tr>
+      <tr>
+        <td>4. Public Type Index</td>
+        <td><span id="param-pubti">—</span></td>
+      </tr>
+      <tr>
+        <td>5. Private Type Index</td>
+        <td><span id="param-privti">—</span></td>
+      </tr>
+      <tr>
+        <td>6. Storage Root (Pod)</td>
+        <td><span id="param-storage">—</span></td>
+      </tr>
+      <tr>
+        <td>7. Pod Provider / OIDC Issuer</td>
+        <td><span id="param-issuer">—</span></td>
+      </tr>
+    </table>
+
+    <h2>Actions</h2>
+    <div class="button-row">
+      <button id="refresh-button">🔄 Refresh Profile</button>
+      <button id="logout-button">🚪 Log Out</button>
+    </div>
+
+    <div id="status"></div>
+
+  </div>
+
+  <div class="footer">
+    <p>
+      Tafel Calendar PoC — inspired by 
+      <a href="https://github.com/ewingson/solid-note-experiment" target="_blank">solid-note-experiment</a>
+    </p>
+    <p style="font-size: 0.8rem; color: #95a5a6;">
+      v0.1 | Auth + Debug Display | <code>tlogic.js</code>
+    </p>
+  </div>
+
+</main>
+
+<!-- ===== DEPENDENCIES ===== -->
+<!-- @inrupt/solid-client-authn-browser: OIDC authentication for Solid -->
+<!-- n3: RDF parser for Turtle documents -->
+
+<script src="https://cdn.jsdelivr.net/npm/@inrupt/solid-client-authn-browser@4.0.0/dist/solid-client-authn.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/n3@2.0.3/browser/n3.min.js"></script>
+
+<!-- App logic -->
+<script src="tlogic.js"></script>
+
+</body>
+</html>
