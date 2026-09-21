@@ -90,20 +90,11 @@ function clearDebugDisplay() {
 }
 
 /**
- * truncateUrl(url, length)
- * Shortens long URLs for display (keeps protocol + domain + first path segment)
+ * showUrl(url)
+ * Displays full URLs without truncation
  */
-function truncateUrl(url, length = 50) {
-  if (!url) return "—";
-  if (url.length <= length) return url;
-  try {
-    const parsed = new URL(url);
-    const short = `${parsed.protocol}//${parsed.hostname}/…`;
-    if (short.length < length) return url.substring(0, length - 3) + "…";
-    return short;
-  } catch (e) {
-    return url.substring(0, length - 3) + "…";
-  }
+function showUrl(url) {
+  return url || "—";
 }
 
 /**
@@ -266,14 +257,14 @@ function updateAuthenticatedUI(profile) {
   // Set username
   usernameEl.textContent = profile.fn || 'User';
 
-  // Set all 7 parameters (with truncation for long URLs)
-  paramWebid.textContent = truncateUrl(profile.webId, 60) || '—';
+  // Set all 7 parameters (full URLs, no truncation)
+  paramWebid.textContent = showUrl(profile.webId) || '—';
   paramFn.textContent = profile.fn || '—';
-  paramPref.textContent = truncateUrl(profile.pref) || '—';
-  paramPubti.textContent = truncateUrl(profile.pubti) || '—';
-  paramPrivti.textContent = truncateUrl(profile.privti) || '—';
-  paramStorage.textContent = truncateUrl(profile.storage) || '—';
-  paramIssuer.textContent = truncateUrl(profile.issuer, 40) || '—';
+  paramPref.textContent = showUrl(profile.pref) || '—';
+  paramPubti.textContent = showUrl(profile.pubti) || '—';
+  paramPrivti.textContent = showUrl(profile.privti) || '—';
+  paramStorage.textContent = showUrl(profile.storage) || '—';
+  paramIssuer.textContent = showUrl(profile.issuer) || '—';
 
   // Update visibility
   loadingDiv.setAttribute('hidden', '');
