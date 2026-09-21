@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
   <style>
     body { font-family: system-ui, sans-serif; }
-    main { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+    main { max-width: 1850px; margin: 0 auto; padding: 0.5rem; }
     h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.5rem; }
     h2 { color: #34495e; margin-top: 1.5rem; }
     
@@ -24,20 +24,22 @@
     
     #auth-guest {
       background: #ecf0f1;
-      padding: 1.5rem 4rem;
+      padding: 1.5rem 2rem;
       border-left: 4px solid #e74c3c;
       border-radius: 4px;
       width: 100%;
       box-sizing: border-box;
+      margin: 1rem 0;
     }
     
     #auth-user {
       background: #d5f4e6;
-      padding: 1.5rem 4rem;
+      padding: 1.5rem 2rem;
       border-left: 4px solid #27ae60;
       border-radius: 4px;
       width: 100%;
       box-sizing: border-box;
+      margin: 1rem 0;
     }
     
     .user-hello { 
@@ -61,15 +63,20 @@
     #debug-table td:first-child {
       font-weight: bold;
       background: #ecf0f1;
-      width: 200px;
+      width: 180px;
+      min-width: 180px;
       word-break: break-word;
+      padding: 0.75rem;
     }
     
     #debug-table td:last-child {
       font-family: 'Courier New', monospace;
       font-size: 0.9rem;
-      word-break: break-all;
-      max-width: 600px;
+      word-break: break-word;
+      white-space: nowrap;
+      overflow: visible;
+      padding: 0.75rem;
+      flex-grow: 1;
     }
     
     .button-row {
