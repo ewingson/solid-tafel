@@ -1,5 +1,5 @@
 /**
- * tlogic.js — Tafel Calendar App Logic — v0.1
+ * tlogic.js — Tafel Calendar App Logic — v0.0.2
  * 
  * First iteration: OIDC authentication + debug profile display
  * Inspired by: https://github.com/ewingson/solid-note-experiment/blob/main/slogic.js
