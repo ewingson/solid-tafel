@@ -1,7 +1,7 @@
 /**
- * tlogic.js — Tafel Calendar App Logic — v0.0.2
+ * tlogic.js — Tafel Calendar App Logic — v0.0.3
  * 
- * First iteration: OIDC authentication + debug profile display
+ * First iteration: OIDC authentication + debug profile display + session persistence
  * Inspired by: https://github.com/ewingson/solid-note-experiment/blob/main/slogic.js
  * 
  * Fetches and displays 7 key parameters from the user's Solid Pod:
@@ -30,6 +30,10 @@ const PREF_FILE = "http://www.w3.org/ns/pim/space#preferencesFile";
 const PUBLIC_TI = "http://www.w3.org/ns/solid/terms#publicTypeIndex";
 const PRIVATE_TI = "http://www.w3.org/ns/solid/terms#privateTypeIndex";
 const STORAGE = "http://www.w3.org/ns/pim/space#storage";
+
+// localStorage keys (modular, easy to refactor)
+const STORAGE_KEY_WEBID = 'tafel_webid';
+const STORAGE_KEY_ISSUER = 'tafel_issuer';
 
 // Config (will be populated on login)
 let currentWebId = null;
@@ -87,6 +91,63 @@ function clearDebugDisplay() {
   paramPrivti.textContent = "—";
   paramStorage.textContent = "—";
   paramIssuer.textContent = "—";
+}
+
+/**
+ * saveSession(webId, issuer)
+ * Persists session to localStorage.
+ * Modular: can be replaced with IndexedDB or SessionStorage later.
+ * 
+ * Future: when "open app" button is added to start page,
+ * this allows returning users to skip re-login.
+ */
+function saveSession(webId, issuer) {
+  try {
+    console.log('[saveSession] Saving webId:', webId);
+    console.log('[saveSession] Saving issuer:', issuer);
+    localStorage.setItem(STORAGE_KEY_WEBID, webId);
+    localStorage.setItem(STORAGE_KEY_ISSUER, issuer || '');
+    console.log('[saveSession] ✅ Session saved to localStorage');
+  } catch (error) {
+    console.warn('[saveSession] ⚠️ Could not save session to localStorage:', error);
+  }
+}
+
+/**
+ * loadSession()
+ * Retrieves session from localStorage.
+ * Returns: { webId, issuer } or null if not found.
+ */
+function loadSession() {
+  try {
+    const webId = localStorage.getItem(STORAGE_KEY_WEBID);
+    const issuer = localStorage.getItem(STORAGE_KEY_ISSUER);
+    
+    if (!webId) {
+      return null;
+    }
+    
+    console.log('Session loaded from localStorage');
+    return { webId, issuer };
+  } catch (error) {
+    console.warn('Could not load session from localStorage:', error);
+    return null;
+  }
+}
+
+/**
+ * clearSession()
+ * Removes session from localStorage.
+ * Called on logout.
+ */
+function clearSession() {
+  try {
+    localStorage.removeItem(STORAGE_KEY_WEBID);
+    localStorage.removeItem(STORAGE_KEY_ISSUER);
+    console.log('Session cleared from localStorage');
+  } catch (error) {
+    console.warn('Could not clear session from localStorage:', error);
+  }
 }
 
 /**
@@ -318,9 +379,12 @@ function handleLogin() {
 async function handleLogout() {
   try {
     logoutButton.setAttribute('disabled', '');
-    setStatus('🚪 Logging out…', 'info');
+    setStatus('Logging out…', 'info');
     
     await solidClientAuthentication.logout();
+    
+    // Clear localStorage session
+    clearSession();
     
     currentWebId = null;
     currentIssuer = null;
@@ -367,12 +431,25 @@ async function main() {
   try {
     setStatus('⏳ Checking session…', 'info');
 
-    // Handle redirect from OIDC provider
+    // STEP 1: Check if user has a saved session in localStorage
+    const savedSession = loadSession();
+    if (savedSession && savedSession.webId) {
+      console.log('Resuming saved session from localStorage');
+      currentWebId = savedSession.webId;
+      currentIssuer = savedSession.issuer || new URL(currentWebId).origin;
+      
+      // Fetch and display profile from saved session
+      const profile = await fetchUserProfile(currentWebId, currentIssuer);
+      updateAuthenticatedUI(profile);
+      return; // Exit here if saved session works
+    }
+
+    // STEP 2: No saved session; handle OIDC redirect (first-time login or session expired)
     await solidClientAuthentication.handleIncomingRedirect({
       restorePreviousSession: true
     });
 
-    // Get current session
+    // Get current session from @inrupt library
     const session = solidClientAuthentication.getDefaultSession();
 
     if (!session.info.isLoggedIn) {
@@ -380,13 +457,12 @@ async function main() {
       return;
     }
 
-    // User is logged in
+    // STEP 3: User just logged in via OIDC; save to localStorage
     currentWebId = session.info.webId;
+    currentIssuer = session.info.issuer || new URL(currentWebId).origin;
     
-    // Extract issuer from OIDC provider URL (stored in session if available)
-    // Fallback: extract from WebID hostname
-    currentIssuer = session.info.issuer || 
-                    new URL(currentWebId).origin;
+    // Save this new session for future visits
+    saveSession(currentWebId, currentIssuer);
 
     // Fetch and display profile
     const profile = await fetchUserProfile(currentWebId, currentIssuer);
