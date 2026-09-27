@@ -1,5 +1,5 @@
 /**
- * TAFEL CALENDAR APP — tlogic.js v0.1
+ * TAFEL CALENDAR APP — tlogic.js v0.0.5
  * 
  * Solid OIDC Authentication + Profile Fetch + Session Persistence
  * 
