@@ -1,8 +1,6 @@
-<!-- Tafel Calendar App — Prototyp -->
-<!-- Auth + Debug Display -->
-<!-- inspired by https://github.com/ewingson/solid-note-experiment -->
-
 <!DOCTYPE html>
+<!-- Tafel Calendar App — v0.0.7 — Auth + Debug Display -->
+<!-- inspired by https://github.com/ewingson/solid-note-experiment -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -14,14 +12,14 @@
     main { max-width: 1850px; margin: 0 auto; padding: 0.5rem; }
     h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.5rem; }
     h2 { color: #34495e; margin-top: 1.5rem; }
-    
-    #loading { 
-      text-align: center; 
-      padding: 2rem; 
+
+    #loading {
+      text-align: center;
+      padding: 2rem;
       color: #7f8c8d;
       font-style: italic;
     }
-    
+
     #auth-guest {
       background: #ecf0f1;
       padding: 1.5rem 2rem;
@@ -31,7 +29,7 @@
       box-sizing: border-box;
       margin: 1rem 0;
     }
-    
+
     #auth-user {
       background: #d5f4e6;
       padding: 1.5rem 2rem;
@@ -41,44 +39,47 @@
       box-sizing: border-box;
       margin: 1rem 0;
     }
-    
-    .user-hello { 
-      font-size: 1.2rem; 
+
+    .user-hello {
+      font-size: 1.2rem;
       margin-bottom: 1rem;
     }
-    
+
     .user-hello strong { color: #27ae60; }
-    
+
+    .get-pod {
+      margin-top: 1rem;
+      font-size: 0.95rem;
+      color: #34495e;
+    }
+
+    .table-scroll { overflow-x: auto; }
+
     #debug-table {
       width: 100%;
       border-collapse: collapse;
       margin: 1rem 0;
     }
-    
+
     #debug-table td {
       padding: 0.75rem;
       border: 1px solid #bdc3c7;
     }
-    
+
     #debug-table td:first-child {
       font-weight: bold;
       background: #ecf0f1;
       width: 180px;
       min-width: 180px;
       word-break: break-word;
-      padding: 0.75rem;
     }
-    
+
     #debug-table td:last-child {
       font-family: 'Courier New', monospace;
       font-size: 0.9rem;
-      word-break: break-word;
       white-space: nowrap;
-      overflow: visible;
-      padding: 0.75rem;
-      flex-grow: 1;
     }
-    
+
     .button-row {
       display: flex;
       gap: 0.75rem;
@@ -86,7 +87,7 @@
       margin-top: 1rem;
       margin-bottom: 1rem;
     }
-    
+
     button {
       padding: 0.6rem 1.2rem;
       border: none;
@@ -95,30 +96,30 @@
       font-size: 1rem;
       transition: background 0.3s;
     }
-    
+
     #login-button {
       background: #3498db;
       color: white;
     }
-    
+
     #login-button:hover {
       background: #2980b9;
     }
-    
+
     #logout-button {
       background: #e74c3c;
       color: white;
     }
-    
+
     #logout-button:hover {
       background: #c0392b;
     }
-    
+
     button:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
-    
+
     #status {
       margin-top: 1rem;
       padding: 0.75rem;
@@ -129,19 +130,21 @@
       min-height: 1.4rem;
       font-size: 0.95rem;
     }
-    
+
+    #status:empty { display: none; }
+
     #status.error {
       background: #f8d7da;
       border-left-color: #dc3545;
       color: #721c24;
     }
-    
+
     #status.success {
       background: #d4edda;
       border-left-color: #28a745;
       color: #155724;
     }
-    
+
     .footer {
       text-align: center;
       margin-top: 3rem;
@@ -171,131 +174,12 @@
       height: 100%;
       object-fit: cover;
     }
-    
+
     code {
       background: #f5f5f5;
       padding: 0.2rem 0.4rem;
       border-radius: 2px;
       font-size: 0.9rem;
-    }
-
-    #calendar-container {
-      margin: 1rem 0;
-      overflow-x: auto;
-      border: 1px solid #bdc3c7;
-      border-radius: 4px;
-    }
-
-    #calendar-table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-    }
-
-    #calendar-table thead th {
-      background: #34495e;
-      color: white;
-      padding: 0.75rem 0.5rem;
-      text-align: center;
-      font-weight: bold;
-      border: 1px solid #2c3e50;
-      font-size: 0.9rem;
-    }
-
-    #calendar-table tbody td {
-      width: 80px;
-      height: 40px;
-      border: 1px solid #ecf0f1;
-      text-align: center;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: background 0.2s;
-      position: relative;
-    }
-
-    .slot-free {
-      background: #d5f4e6;
-      color: #27ae60;
-      font-weight: bold;
-    }
-
-    .slot-free:hover {
-      background: #a9ead2;
-    }
-
-    .slot-booked {
-      background: #ecf0f1;
-      color: #7f8c8d;
-      cursor: not-allowed;
-    }
-
-    .slot-time-label {
-      background: #f8f9f9;
-      font-weight: bold;
-      color: #2c3e50;
-      width: 60px;
-    }
-
-    #pdf-upload-section {
-      background: #ecf0f1;
-      padding: 1.5rem;
-      border-left: 4px solid #3498db;
-      border-radius: 4px;
-      margin: 1rem 0;
-    }
-
-    #pdf-file-input {
-      margin-right: 1rem;
-      padding: 0.5rem;
-    }
-
-    #upload-pdf-button {
-      background: #3498db;
-      color: white;
-      padding: 0.6rem 1.2rem;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 1rem;
-      transition: background 0.3s;
-    }
-
-    #upload-pdf-button:hover {
-      background: #2980b9;
-    }
-
-    #upload-pdf-button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    #upload-status {
-      margin-top: 0.75rem;
-      padding: 0.75rem;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      display: none;
-    }
-
-    #upload-status.success {
-      background: #d4edda;
-      color: #155724;
-      border-left: 4px solid #28a745;
-      display: block;
-    }
-
-    #upload-status.error {
-      background: #f8d7da;
-      color: #721c24;
-      border-left: 4px solid #dc3545;
-      display: block;
-    }
-
-    .actions-row {
-      display: flex;
-      gap: 0.75rem;
-      margin: 1rem 0;
-      flex-wrap: wrap;
     }
   </style>
 </head>
@@ -303,8 +187,12 @@
 
 <main>
 
-  <h1>Tafel Calendar App — v0.0.5</h1>
+  <h1>Tafel Calendar App — <span data-app-version>v0.0.7</span></h1>
   <p><em>First iteration: OIDC Authentication + Debug Display</em></p>
+
+  <noscript>
+    <p><strong>This app needs JavaScript to log in to your Solid Pod.</strong></p>
+  </noscript>
 
   <!-- ===== LOADING STATE ===== -->
   <div id="loading">
@@ -319,12 +207,16 @@
     <div class="button-row">
       <button id="login-button">Log In with Solid</button>
     </div>
-    <div id="status"></div>
+    <p class="get-pod" id="get-pod">
+      No Solid Pod yet?
+      <a id="get-pod-link" href="https://solidproject.org/users/get-a-pod" target="_blank" rel="noopener noreferrer">Get a Pod</a>
+      — free, takes a few minutes. Then come back and log in.
+    </p>
   </div>
 
   <!-- ===== AUTHENTICATED STATE ===== -->
   <div id="auth-user" hidden>
-    
+
     <div class="user-hello">
       Hello, <strong id="username">User</strong>! ✨
     </div>
@@ -332,123 +224,74 @@
     <h2>Debug: Your Solid Profile</h2>
     <p>Below are 7 key parameters from your Solid Pod. These are used internally for app configuration.</p>
 
-    <table id="debug-table">
-      <tr>
-        <td>1. WebID</td>
-        <td><span id="param-webid">—</span></td>
-      </tr>
-      <tr>
-        <td>2. Display Name (vCard:fn)</td>
-        <td><span id="param-fn">—</span></td>
-      </tr>
-      <tr>
-        <td>3. Preferences File</td>
-        <td><span id="param-pref">—</span></td>
-      </tr>
-      <tr>
-        <td>4. Public Type Index</td>
-        <td><span id="param-pubti">—</span></td>
-      </tr>
-      <tr>
-        <td>5. Private Type Index</td>
-        <td><span id="param-privti">—</span></td>
-      </tr>
-      <tr>
-        <td>6. Storage Root (Pod)</td>
-        <td><span id="param-storage">—</span></td>
-      </tr>
-      <tr>
-        <td>7. Pod Provider / OIDC Issuer</td>
-        <td><span id="param-issuer">—</span></td>
-      </tr>
-    </table>
-
-    <h2>Termine (nächste 2 Wochen)</h2>
-    <div id="calendar-container">
-      <table id="calendar-table">
-        <thead id="calendar-header">
-          <!-- Dynamisch gefüllt: Mo-So -->
-        </thead>
-        <tbody id="calendar-body">
-          <!-- Dynamisch gefüllt: Zeit-Slots -->
-        </tbody>
+    <div class="table-scroll">
+      <table id="debug-table">
+        <tr>
+          <td>1. WebID</td>
+          <td><span id="param-webid">—</span></td>
+        </tr>
+        <tr>
+          <td>2. Display Name (vCard:fn)</td>
+          <td><span id="param-fn">—</span></td>
+        </tr>
+        <tr>
+          <td>3. Preferences File</td>
+          <td><span id="param-pref">—</span></td>
+        </tr>
+        <tr>
+          <td>4. Public Type Index</td>
+          <td><span id="param-pubti">—</span></td>
+        </tr>
+        <tr>
+          <td>5. Private Type Index</td>
+          <td><span id="param-privti">—</span></td>
+        </tr>
+        <tr>
+          <td>6. Storage Root (Pod)</td>
+          <td><span id="param-storage">—</span></td>
+        </tr>
+        <tr>
+          <td>7. Pod Provider / OIDC Issuer</td>
+          <td><span id="param-issuer">—</span></td>
+        </tr>
       </table>
     </div>
 
-    <h2>Lebensmittel-Nachweis (PDF)</h2>
-    <div id="pdf-upload-section">
-      <input type="file" id="pdf-file-input" accept=".pdf" />
-      <button id="upload-pdf-button">PDF hochladen</button>
-      <div id="upload-status"></div>
+    <h2>Actions</h2>
+    <div class="button-row">
+      <button id="refresh-button">Refresh Profile</button>
+      <button id="logout-button">Log Out</button>
     </div>
-
-    <h2>Aktionen</h2>
-    <div class="actions-row">
-      <button id="refresh-button">Profil aktualisieren</button>
-      <button id="logout-button">Abmelden</button>
-    </div>
-
-    <div id="status"></div>
 
   </div>
 
+  <!-- ===== STATUS (shared by all states; exactly one element with this id) ===== -->
+  <div id="status" role="status" aria-live="polite"></div>
+
   <div class="footer">
     <p>
-      Tafel Calendar PoC — inspired by 
-      <a href="https://github.com/ewingson/solid-note-experiment" target="_blank">solid-note-experiment</a>
+      Tafel Calendar PoC — inspired by
+      <a href="https://github.com/ewingson/solid-note-experiment" target="_blank" rel="noopener noreferrer">solid-note-experiment</a>
     </p>
-    <a href="https://github.com/ewingson/solid-tafel/" target="_blank" class="github-logo" title="View on GitHub">
+    <a href="https://github.com/ewingson/solid-tafel/" target="_blank" rel="noopener noreferrer" class="github-logo" title="View on GitHub">
       <img src="https://serverproject.de/solid-tafel/github_claude.png" alt="GitHub">
     </a>
     <p style="font-size: 0.8rem; color: #95a5a6;">
-      v0.0.5 | Auth + Debug Display
+      <span data-app-version>v0.0.7</span> | Auth + Debug Display
     </p>
   </div>
 
 </main>
 
 <!-- ===== DEPENDENCIES ===== -->
-<!-- @inrupt/solid-client-authn-browser: OIDC authentication for Solid -->
-<!-- n3: RDF parser for Turtle documents -->
-
-<script>
-console.log('🔄 [LOADER] Starting script injection at', new Date().toISOString());
-console.log('🔄 [LOADER] Document ready state:', document.readyState);
-console.log('🔄 [LOADER] Window object available:', typeof window !== 'undefined');
-</script>
+<!-- @inrupt/solid-client-authn-browser: OIDC authentication for Solid (global: solidClientAuthentication) -->
+<!-- n3: RDF parser for Turtle documents (global: N3) -->
 
 <script src="https://cdn.jsdelivr.net/npm/@inrupt/solid-client-authn-browser@4.0.0/dist/solid-client-authn.bundle.js"></script>
-
-<script>
-console.log('✅ [LOADER] @inrupt/solid-client-authn-browser loaded');
-console.log('✅ [LOADER] solidClientAuthentication available:', typeof solidClientAuthentication !== 'undefined');
-if (typeof solidClientAuthentication !== 'undefined') {
-  console.log('✅ [LOADER] solidClientAuthentication object:', Object.keys(solidClientAuthentication).slice(0, 5), '...');
-}
-</script>
-
 <script src="https://cdn.jsdelivr.net/npm/n3@2.0.3/browser/n3.min.js"></script>
 
-<script>
-console.log('✅ [LOADER] n3 library loaded');
-console.log('✅ [LOADER] N3 available:', typeof N3 !== 'undefined');
-if (typeof N3 !== 'undefined') {
-  console.log('✅ [LOADER] N3 object keys:', Object.keys(N3).slice(0, 5), '...');
-}
-</script>
-
 <!-- App logic -->
-<script>
-console.log('🔄 [LOADER] About to load tlogic.js...');
-console.log('🔄 [LOADER] Current timestamp:', Date.now());
-</script>
-
 <script src="tlogic.js"></script>
-
-<script>
-console.log('✅ [LOADER] tlogic.js loaded successfully');
-console.log('✅ [LOADER] Waiting for DOM content loaded event...');
-</script>
 
 </body>
 </html>
