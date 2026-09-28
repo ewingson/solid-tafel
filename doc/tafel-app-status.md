@@ -19,10 +19,10 @@ aliases: ["tafel-app", "tafel-poc"]
 - `doc/v0.1.md` was intended as a starter/spec, not a release number.
 - **Live now:** `v0.0.7`
 - Patch releases are `0.0.x`; minor bump to `v0.1.0` once there is a very rough UI plus very first functionality.
-- **Next code deliverable requested:** `v0.0.7` (`index.html` + `tlogic.js` only for now), double/triple-checked before handing over.
+- **Next code deliverable requested:** `v0.0.8` (`index.html` + `tlogic.js` only for now), double/triple-checked before handing over.
 - `v0.0.6` = design groundwork (pod-layout draft in `doc/pod-layout.md`).
 
-### Current State: v0.0.5 ✅ Live
+### Current State: v0.0.7 ✅ Live
 
 #### What's working
 
