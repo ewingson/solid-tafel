@@ -1,61 +1,78 @@
 /**
- * TAFEL CALENDAR APP — tlogic.js v0.0.5
- * 
- * Solid OIDC Authentication + Profile Fetch + Session Persistence
- * 
- * This is the core logic for:
- * - User login via Pod Provider
- * - OIDC redirect flow
- * - Session restoration from localStorage
- * - Profile document fetching and parsing
- * - Display of 7 key profile parameters
- * 
- * Based on: https://github.com/ewingson/solid-tafel/blob/main/src/tlogic.js
- * Deployed at: https://serverproject.de/solid-tafel/
+ * tlogic.js — Tafel Calendar App Logic — v0.0.7
+ *
+ * OIDC authentication + debug profile display + returning-user hint.
+ * Inspired by: https://github.com/ewingson/solid-note-experiment/blob/main/slogic.js
+ *
+ * Fetches and displays 7 key parameters from the user's Solid Pod:
+ *   1. WebID (unique identifier)
+ *   2. Display Name (vCard / FOAF)
+ *   3. Preferences File
+ *   4. Public Type Index
+ *   5. Private Type Index
+ *   6. Storage Root
+ *   7. OIDC Issuer (Pod Provider)
+ *
+ * Changes in v0.0.7 (vs v0.0.5):
+ *   - "Get a Pod" link on the start page (index.html)
+ *   - Session is ALWAYS restored through the Inrupt library
+ *     (handleIncomingRedirect). localStorage is only a hint (last WebID /
+ *     issuer), never a substitute for a real login.
+ *   - Profile values are read for the WebID subject only (not for other
+ *     people mentioned in the profile document)
+ *   - Issuer is the one the user logged in with (or solid:oidcIssuer from the
+ *     profile); it is no longer guessed from the WebID origin
+ *   - Single #status element, errors are no longer wiped by showGuestUI()
+ *   - Login errors are shown; redirectUrl has no query/hash; issuer input
+ *     accepts "solidweb.org" without https://
+ *   - Version number lives in APP_VERSION only (shown in page via
+ *     data-app-version)
+ *
+ * Structure decision: index.html + tlogic.js only, until pod writes arrive.
+ * NEXT STEPS: see doc/pod-layout.md (role detection via staff/*.ttl,
+ * appointments from /solid-tafel/appointments/).
  */
 
 // ============================================================
-// SECTION 1: RDF PREDICATES & CONSTANTS
+// SECTION 1: CONFIGURATION & CONSTANTS
 // ============================================================
 
-// Solid/RDF predicates we extract from the user's profile
+const APP_VERSION = '0.0.7';
+const APP_NAME = 'Tafel Calendar App';
+
+// Solid RDF Predicates (URIs for profile properties)
 const FOAF_NAME = "http://xmlns.com/foaf/0.1/name";
 const VCARD_FN = "http://www.w3.org/2006/vcard/ns#fn";
 const PREF_FILE = "http://www.w3.org/ns/pim/space#preferencesFile";
 const PUBLIC_TI = "http://www.w3.org/ns/solid/terms#publicTypeIndex";
 const PRIVATE_TI = "http://www.w3.org/ns/solid/terms#privateTypeIndex";
 const STORAGE = "http://www.w3.org/ns/pim/space#storage";
+const OIDC_ISSUER = "http://www.w3.org/ns/solid/terms#oidcIssuer";
 
-// localStorage keys for session persistence
+// localStorage keys (a HINT for returning users, not a session)
 const STORAGE_KEY_WEBID = 'tafel_webid';
 const STORAGE_KEY_ISSUER = 'tafel_issuer';
 
-// ============================================================
-// SECTION 2: STATE VARIABLES
-// ============================================================
-
-let currentWebId = null;    // User's WebID (e.g., https://pod.example/profile/card#me)
-let currentIssuer = null;   // OIDC issuer (e.g., https://pod.example)
+// Config (populated on login)
+let currentWebId = null;
+let currentIssuer = null;
 
 // ============================================================
-// SECTION 3: DOM ELEMENT REFERENCES
+// SECTION 2: DOM ELEMENT REFERENCES
 // ============================================================
 
-// Main view containers
 const loadingDiv = document.getElementById('loading');
 const guestDiv = document.getElementById('auth-guest');
 const userDiv = document.getElementById('auth-user');
 
-// Buttons
 const loginButton = document.getElementById('login-button');
 const logoutButton = document.getElementById('logout-button');
 const refreshButton = document.getElementById('refresh-button');
 
-// Output elements
 const usernameEl = document.getElementById('username');
 const statusEl = document.getElementById('status');
 
-// Debug table cells (7 parameters)
+// Debug parameters (7 fields)
 const paramWebid = document.getElementById('param-webid');
 const paramFn = document.getElementById('param-fn');
 const paramPref = document.getElementById('param-pref');
@@ -65,15 +82,13 @@ const paramStorage = document.getElementById('param-storage');
 const paramIssuer = document.getElementById('param-issuer');
 
 // ============================================================
-// SECTION 4: UTILITY FUNCTIONS
+// SECTION 3: UTILITY FUNCTIONS
 // ============================================================
 
 /**
  * setStatus(message, type)
- * Updates the status message box with colored background
- * 
- * @param {string} message - The message to display
- * @param {string} type - 'info' (yellow), 'success' (green), 'error' (red)
+ * Updates the (single) status message box.
+ * type: 'info' (yellow), 'success' (green), 'error' (red)
  */
 function setStatus(message, type = 'info') {
   statusEl.textContent = message;
@@ -83,218 +98,269 @@ function setStatus(message, type = 'info') {
 }
 
 /**
+ * showVersion()
+ * Writes APP_VERSION into every [data-app-version] element.
+ */
+function showVersion() {
+  document.querySelectorAll('[data-app-version]').forEach(el => {
+    el.textContent = 'v' + APP_VERSION;
+  });
+}
+
+/**
  * clearDebugDisplay()
- * Resets all 7 parameter display fields to "—"
+ * Resets all 7 parameter fields to "—"
  */
 function clearDebugDisplay() {
-  [paramWebid, paramFn, paramPref, paramPubti, paramPrivti, paramStorage, paramIssuer]
-    .forEach(el => el.textContent = "—");
+  paramWebid.textContent = "—";
+  paramFn.textContent = "—";
+  paramPref.textContent = "—";
+  paramPubti.textContent = "—";
+  paramPrivti.textContent = "—";
+  paramStorage.textContent = "—";
+  paramIssuer.textContent = "—";
 }
-
-/**
- * showUrl(url)
- * Displays a URL, or "—" if null/undefined
- * (Used to show full URLs without truncation)
- */
-function showUrl(url) {
-  return url || "—";
-}
-
-/**
- * promptForIdp()
- * Asks the user to input their Solid Pod provider URL
- * Normalizes the URL to protocol://hostname:port format
- * 
- * @returns {string|null} The OIDC issuer URL, or null if cancelled
- */
-function promptForIdp() {
-  const url = prompt(
-    'Enter your Solid Pod provider URL.\n\n' +
-    'Examples:\n' +
-    ' https://solidweb.org\n' +
-    ' https://pod.inrupt.com\n' +
-    ' https://teamid.live\n\n' +
-    'Your URL:'
-  );
-  
-  if (!url) return null;
-  
-  try {
-    const parsed = new URL(url);
-    // Normalize: just protocol://hostname:port (no path)
-    const issuer = `${parsed.protocol}//${parsed.hostname}${parsed.port ? ':' + parsed.port : ''}`;
-    return issuer;
-  } catch (e) {
-    alert('Invalid URL. Please try again.');
-    return null;
-  }
-}
-
-// ============================================================
-// SECTION 5: SESSION MANAGEMENT
-// ============================================================
 
 /**
  * saveSession(webId, issuer)
- * Persists the user's session to browser localStorage
- * This allows returning users to skip re-login
- * 
- * @param {string} webId - User's WebID
- * @param {string} issuer - OIDC issuer URL
+ * Remembers the last WebID + issuer in localStorage.
+ * This is only a HINT (prefills the login prompt, keeps the issuer shown in
+ * the debug table). Being "logged in" is decided solely by the Inrupt library.
  */
 function saveSession(webId, issuer) {
   try {
-    localStorage.setItem(STORAGE_KEY_WEBID, webId);
+    localStorage.setItem(STORAGE_KEY_WEBID, webId || '');
     localStorage.setItem(STORAGE_KEY_ISSUER, issuer || '');
-    console.log('[saveSession] Session saved to localStorage');
   } catch (error) {
     console.warn('[saveSession] Could not save to localStorage:', error);
   }
 }
 
 /**
+ * saveIssuerHint(issuer)
+ * Stores the issuer the user typed, right before the redirect to the IdP.
+ * (The library does not tell us the issuer after the redirect.)
+ */
+function saveIssuerHint(issuer) {
+  try {
+    localStorage.setItem(STORAGE_KEY_ISSUER, issuer || '');
+  } catch (error) {
+    console.warn('[saveIssuerHint] Could not save to localStorage:', error);
+  }
+}
+
+/**
  * loadSession()
- * Retrieves the user's saved session from localStorage
- * 
- * @returns {Object|null} { webId, issuer } or null if not found
+ * Returns { webId, issuer } (either may be null). Never throws.
  */
 function loadSession() {
   try {
-    const webId = localStorage.getItem(STORAGE_KEY_WEBID);
-    const issuer = localStorage.getItem(STORAGE_KEY_ISSUER);
-    if (!webId) return null;
-    console.log('[loadSession] Session found in localStorage');
-    return { webId, issuer };
+    return {
+      webId: localStorage.getItem(STORAGE_KEY_WEBID) || null,
+      issuer: localStorage.getItem(STORAGE_KEY_ISSUER) || null
+    };
   } catch (error) {
-    console.warn('[loadSession] Could not load from localStorage:', error);
-    return null;
+    console.warn('Could not load from localStorage:', error);
+    return { webId: null, issuer: null };
   }
 }
 
 /**
  * clearSession()
- * Removes the user's session from localStorage
- * Called on logout
+ * Removes the hint from localStorage. Called on logout.
  */
 function clearSession() {
   try {
     localStorage.removeItem(STORAGE_KEY_WEBID);
     localStorage.removeItem(STORAGE_KEY_ISSUER);
-    console.log('[clearSession] Session cleared from localStorage');
   } catch (error) {
-    console.warn('[clearSession] Could not clear localStorage:', error);
+    console.warn('Could not clear localStorage:', error);
   }
 }
 
-// ============================================================
-// SECTION 6: SOLID DOCUMENT OPERATIONS
-// ============================================================
+/**
+ * showUrl(url)
+ * Displays full URLs without truncation
+ */
+function showUrl(url) {
+  return url || "—";
+}
+
+/**
+ * promptForIdp(defaultUrl)
+ * Asks the user for their Solid Pod provider URL.
+ * Accepts "solidweb.org" (https:// is added). Only https is allowed
+ * (http only for localhost). Returns the issuer origin, or null.
+ * Note: issuers with a path (https://host/idp) are not supported here.
+ */
+function promptForIdp(defaultUrl = '') {
+  let url = prompt(
+    'Enter your Solid Pod provider URL.\n\n' +
+    'Examples:\n' +
+    '  https://solidweb.org\n' +
+    '  https://pod.inrupt.com\n' +
+    '  https://herford.meisdata.io\n\n' +
+    'Your URL:',
+    defaultUrl
+  );
+
+  if (!url) return null;
+  url = url.trim();
+  if (!url) return null;
+
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+    url = 'https://' + url;
+  }
+
+  try {
+    const parsed = new URL(url);
+    const isLocal = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && isLocal)) {
+      alert('Please use an https:// address.');
+      return null;
+    }
+    return parsed.origin;
+  } catch (e) {
+    alert('Invalid URL. Please try again.');
+    return null;
+  }
+}
 
 /**
  * readSolidDocument(url)
- * Fetches and parses a Turtle RDF document from a Solid Pod
- * Uses solidClientAuthentication.fetch() to include auth headers
- * 
- * @param {string} url - The document URL (e.g., https://pod/profile/card)
- * @returns {Array} Array of N3 Quad objects, empty if fetch fails
+ * Fetches a Turtle RDF document and parses it with N3.
+ * Returns an array of Quads ([] if missing / unreadable / unparsable).
  */
 async function readSolidDocument(url) {
   try {
     const response = await solidClientAuthentication.fetch(url, {
       headers: { 'Accept': 'text/turtle' }
     });
-    
+
     if (!response.ok) {
-      console.warn(`[readSolidDocument] Could not fetch ${url}: ${response.status}`);
+      console.warn(`Could not fetch ${url}: ${response.status}`);
       return [];
     }
-    
+
+    const contentType = response.headers.get('Content-Type') || '';
+    if (!/turtle/i.test(contentType)) {
+      console.warn(`Unexpected Content-Type for ${url}: ${contentType}`);
+    }
+
     const text = await response.text();
     const parser = new N3.Parser({ baseIRI: url });
     return parser.parse(text);
   } catch (error) {
-    console.error(`[readSolidDocument] Error reading ${url}:`, error);
+    console.error(`Error reading document ${url}:`, error);
     return [];
   }
 }
 
 /**
- * getProfileValue(quads, predicate)
- * Finds the first RDF triple matching a predicate and returns its object
- * 
- * @param {Array} quads - Array of N3 Quad objects
- * @param {string} predicate - RDF predicate URI to search for
- * @returns {string|null} The object value, or null if not found
+ * getValue(quads, subject, predicate)
+ * Value of `predicate` for `subject` only (a profile document can also
+ * describe other people, e.g. foaf:knows entries).
  */
-function getProfileValue(quads, predicate) {
-  const quad = quads.find(q => q.predicate.value === predicate);
+function getValue(quads, subject, predicate) {
+  const quad = quads.find(q =>
+    q.subject.value === subject && q.predicate.value === predicate);
   return quad ? quad.object.value : null;
 }
 
 /**
- * fetchUserProfile(webId, issuer)
- * Fetches the user's profile document and extracts all 7 parameters
- * 
- * The profile document is RDF/Turtle format containing metadata about the user
- * We extract: name, preferences, type indices, storage location, etc.
- * 
- * @param {string} webId - User's WebID
- * @param {string} issuer - OIDC issuer (for display)
- * @returns {Object} Profile object with all 7 parameters
- * @throws {Error} If profile document cannot be read or parsed
+ * findStorageRoot(url)
+ * Walks up the URL hierarchy to find the storage root (fallback if
+ * pim:storage is not in the profile). Looks for a Link header of type
+ * pim:Storage; falls back to the origin.
  */
-async function fetchUserProfile(webId, issuer) {
+async function findStorageRoot(url) {
+  url = url.replace(/#.*$/, '').replace(/\/$/, '');
+
+  if (url.split('/').length <= 3) {
+    // We're at the domain level
+    return url + '/';
+  }
+
+  const parentUrl = url.substring(0, url.lastIndexOf('/'));
+
+  try {
+    // Containers end with "/"
+    const response = await solidClientAuthentication.fetch(parentUrl + '/', {
+      method: 'HEAD'
+    });
+
+    const link = response.headers.get('Link');
+    if (link && link.includes('space#Storage')) {
+      return parentUrl + '/';
+    }
+  } catch (error) {
+    console.warn(`Could not check ${parentUrl}:`, error);
+  }
+
+  return findStorageRoot(parentUrl);
+}
+
+// ============================================================
+// SECTION 4: PROFILE FETCHING
+// ============================================================
+
+/**
+ * fetchUserProfile(webId, issuerHint)
+ * Reads the user's profile document and extracts all 7 parameters.
+ * Returns { webId, fn, pref, pubti, privti, storage, issuer }
+ */
+async function fetchUserProfile(webId, issuerHint) {
   try {
     setStatus('📖 Fetching your profile…', 'info');
-    
-    // The WebID points to a fragment (e.g., #me), we need the document URL
-    const profileDocUrl = webId.split('#')[0];
-    console.log('[fetchUserProfile] Fetching:', profileDocUrl);
-    
-    const quads = await readSolidDocument(profileDocUrl);
-    
+
+    const quads = await readSolidDocument(webId);
+
     if (quads.length === 0) {
       throw new Error('Profile document empty or unreadable');
     }
-    
-    // Extract all 7 parameters from the RDF quads
+
     const profile = {
       webId: webId,
-      fn: getProfileValue(quads, VCARD_FN) ||
-          getProfileValue(quads, FOAF_NAME) ||
+      fn: getValue(quads, webId, VCARD_FN) ||
+          getValue(quads, webId, FOAF_NAME) ||
           'Anonymous',
-      pref: getProfileValue(quads, PREF_FILE),
-      pubti: getProfileValue(quads, PUBLIC_TI),
-      privti: getProfileValue(quads, PRIVATE_TI),
-      storage: getProfileValue(quads, STORAGE),
-      issuer: issuer
+      pref: getValue(quads, webId, PREF_FILE),
+      pubti: getValue(quads, webId, PUBLIC_TI),
+      privti: getValue(quads, webId, PRIVATE_TI),
+      storage: getValue(quads, webId, STORAGE),
+      // The issuer used for login wins; else what the profile declares
+      issuer: issuerHint || getValue(quads, webId, OIDC_ISSUER)
     };
-    
-    console.log('[fetchUserProfile] Profile fetched:', profile);
+
+    if (!profile.storage) {
+      setStatus('🔍 Finding your storage root…', 'info');
+      try {
+        profile.storage = await findStorageRoot(webId);
+      } catch (e) {
+        console.warn('Could not find storage root:', e);
+        profile.storage = null;
+      }
+    }
+
     return profile;
   } catch (error) {
-    console.error('[fetchUserProfile] Error:', error);
-    setStatus(`❌ Error: ${error.message}`, 'error');
+    console.error('Error fetching profile:', error);
+    setStatus(`❌ Error fetching profile: ${error.message}`, 'error');
     throw error;
   }
 }
 
 // ============================================================
-// SECTION 7: UI UPDATE FUNCTIONS
+// SECTION 5: UI UPDATE LOGIC
 // ============================================================
 
 /**
  * updateAuthenticatedUI(profile)
- * Updates the page to show authenticated state with user's profile data
- * Populates all 7 parameter fields and shows the authenticated view
- * 
- * @param {Object} profile - Profile object returned by fetchUserProfile()
+ * Populates the authenticated view with the user's profile data.
  */
 function updateAuthenticatedUI(profile) {
-  // Set welcome message
   usernameEl.textContent = profile.fn || 'User';
-  
-  // Set all 7 debug parameters
+
   paramWebid.textContent = showUrl(profile.webId);
   paramFn.textContent = profile.fn || '—';
   paramPref.textContent = showUrl(profile.pref);
@@ -302,78 +368,72 @@ function updateAuthenticatedUI(profile) {
   paramPrivti.textContent = showUrl(profile.privti);
   paramStorage.textContent = showUrl(profile.storage);
   paramIssuer.textContent = showUrl(profile.issuer);
-  
-  // Toggle visibility
+
   loadingDiv.setAttribute('hidden', '');
   guestDiv.setAttribute('hidden', '');
   userDiv.removeAttribute('hidden');
-  
+
   setStatus('✅ Profile loaded successfully!', 'success');
 }
 
 /**
- * showGuestUI()
- * Updates the page to show guest state (login prompt)
+ * showGuestUI(keepStatus)
+ * Shows the login prompt. keepStatus=true leaves the current status
+ * message (e.g. an error) visible.
  */
-function showGuestUI() {
+function showGuestUI(keepStatus = false) {
   clearDebugDisplay();
   loadingDiv.setAttribute('hidden', '');
   userDiv.setAttribute('hidden', '');
   guestDiv.removeAttribute('hidden');
-  setStatus('', 'info');
+  if (!keepStatus) setStatus('', 'info');
 }
 
 // ============================================================
-// SECTION 8: AUTHENTICATION EVENT HANDLERS
+// SECTION 6: AUTHENTICATION FLOW
 // ============================================================
 
 /**
  * handleLogin()
- * Called when user clicks "Log In with Solid" button
- * 
- * Flow:
- * 1. Prompt user for Pod Provider URL
- * 2. Call solidClientAuthentication.login() which redirects to OIDC IdP
- * 3. User authenticates
- * 4. IdP redirects back to this page with ?code=... parameters
- * 5. main() processes the redirect
+ * Prompts for the IdP, then redirects to OIDC login.
  */
-function handleLogin() {
-  const issuer = promptForIdp();
+async function handleLogin() {
+  const issuer = promptForIdp(loadSession().issuer || '');
   if (!issuer) {
     setStatus('❌ Login cancelled.', 'error');
     return;
   }
-  
+
   setStatus(`🔐 Redirecting to ${issuer}…`, 'info');
-  
-  solidClientAuthentication.login({
-    oidcIssuer: issuer,
-    redirectUrl: window.location.href,
-    clientName: 'Tafel Calendar App'
-  });
+  saveIssuerHint(issuer);
+
+  try {
+    await solidClientAuthentication.login({
+      oidcIssuer: issuer,
+      // No query string / hash: it must match after the redirect
+      redirectUrl: window.location.origin + window.location.pathname,
+      clientName: APP_NAME
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    setStatus(`❌ Login failed: ${error.message}`, 'error');
+  }
 }
 
 /**
  * handleLogout()
- * Called when user clicks "Abmelden" (Logout) button
- * 
- * Clears the OIDC session and localStorage
+ * Logs the user out and returns to guest state.
  */
 async function handleLogout() {
   try {
     logoutButton.setAttribute('disabled', '');
     setStatus('Logging out…', 'info');
-    
-    // Call Solid library logout
+
     await solidClientAuthentication.logout();
-    
-    // Clear our localStorage session
+
     clearSession();
-    
     currentWebId = null;
     currentIssuer = null;
-    
     showGuestUI();
     setStatus('✅ Logged out.', 'success');
   } catch (error) {
@@ -385,16 +445,14 @@ async function handleLogout() {
 
 /**
  * handleRefresh()
- * Called when user clicks "Profil aktualisieren" (Refresh Profile) button
- * 
- * Re-fetches the profile data without requiring re-login
+ * Re-fetches the profile data without logging in again.
  */
 async function handleRefresh() {
   if (!currentWebId) {
-    setStatus('❌ Not logged in.', 'error');
+    setStatus('❌ Not logged in. Cannot refresh.', 'error');
     return;
   }
-  
+
   try {
     refreshButton.setAttribute('disabled', '');
     const profile = await fetchUserProfile(currentWebId, currentIssuer);
@@ -407,89 +465,53 @@ async function handleRefresh() {
 }
 
 // ============================================================
-// SECTION 9: MAIN INITIALIZATION
+// SECTION 7: INITIALIZATION
 // ============================================================
 
 /**
  * main()
- * Entry point - runs on page load
- * 
- * Handles three cases:
- * 1. User has a saved session in localStorage → restore it
- * 2. User is returning from OIDC redirect → process it
- * 3. First visit, not logged in → show login prompt
+ * Runs on page load.
+ *  1. Lets the Inrupt library finish an OIDC redirect or restore a previous
+ *     session (restorePreviousSession may redirect to the IdP and back).
+ *  2. Not logged in -> guest UI. Logged in -> profile.
  */
 async function main() {
   try {
-    setStatus('⏳ Checking session…', 'info');
-    
-    // ================================================================
-    // STEP 1: CHECK LOCALSTORAGE FOR SAVED SESSION
-    // ================================================================
-    // This is how we avoid making users re-login on every page refresh
-    const savedSession = loadSession();
-    if (savedSession && savedSession.webId) {
-      console.log('[main] Found saved session in localStorage, resuming...');
-      currentWebId = savedSession.webId;
-      currentIssuer = savedSession.issuer || new URL(currentWebId).origin;
-      
-      // Fetch profile with saved credentials
-      const profile = await fetchUserProfile(currentWebId, currentIssuer);
-      updateAuthenticatedUI(profile);
-      return; // Exit - we're done
+    if (typeof solidClientAuthentication === 'undefined' || typeof N3 === 'undefined') {
+      throw new Error('Could not load required libraries (CDN blocked?)');
     }
-    
-    // ================================================================
-    // STEP 2: HANDLE OIDC REDIRECT
-    // ================================================================
-    // If the user just authenticated, the IdP redirected back with
-    // ?code=... &state=... &iss=... parameters.
-    // handleIncomingRedirect() processes these and establishes the session.
-    console.log('[main] No saved session, checking for OIDC redirect...');
+
+    setStatus('⏳ Checking session…', 'info');
+
     await solidClientAuthentication.handleIncomingRedirect({
       restorePreviousSession: true
     });
-    
-    // ================================================================
-    // STEP 3: GET CURRENT SESSION
-    // ================================================================
-    // After handleIncomingRedirect(), the session is available via
-    // getDefaultSession(). This works if the user just logged in via OIDC.
+
     const session = solidClientAuthentication.getDefaultSession();
-    console.log('[main] Current session:', session ? 'active' : 'none');
-    
-    // Check if user is logged in
+
     if (!session.info.isLoggedIn) {
-      console.log('[main] User not logged in, showing login prompt');
       showGuestUI();
       return;
     }
-    
-    // ================================================================
-    // STEP 4: USER JUST LOGGED IN
-    // ================================================================
-    // Extract WebID and issuer from the session
-    // Note: session.info.webId, not session.webId
-    console.log('[main] User logged in!');
+
     currentWebId = session.info.webId;
-    currentIssuer = session.info.issuer || new URL(currentWebId).origin;
-    
-    // Save to localStorage so they don't have to login again next time
-    saveSession(currentWebId, currentIssuer);
-    
-    // Fetch and display their profile
+    // The library does not expose the issuer: use the hint saved at login
+    currentIssuer = loadSession().issuer || null;
+
     const profile = await fetchUserProfile(currentWebId, currentIssuer);
+    currentIssuer = profile.issuer || null;
+    saveSession(currentWebId, currentIssuer);
     updateAuthenticatedUI(profile);
-    
+
   } catch (error) {
-    console.error('[main] Initialization error:', error);
-    setStatus(`❌ Error: ${error.message}`, 'error');
-    showGuestUI();
+    console.error('Initialization error:', error);
+    showGuestUI(true);
+    setStatus(`❌ Initialization failed: ${error.message}`, 'error');
   }
 }
 
 // ============================================================
-// SECTION 10: ATTACH EVENT LISTENERS
+// SECTION 8: EVENT LISTENERS
 // ============================================================
 
 loginButton.addEventListener('click', handleLogin);
@@ -497,8 +519,8 @@ logoutButton.addEventListener('click', handleLogout);
 refreshButton.addEventListener('click', handleRefresh);
 
 // ============================================================
-// SECTION 11: START THE APP
+// SECTION 9: START THE APP
 // ============================================================
 
-console.log('[init] Starting Tafel Calendar App v0.1');
+showVersion();
 main();
