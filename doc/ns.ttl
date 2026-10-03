@@ -1,0 +1,292 @@
+# doc/ns.ttl
+#
+# Tafel Calendar App — application vocabulary
+# Status: v0.0.9 — DELIVERED (namespace relocation; no class/property
+# changes from v0.0.8, see "Namespace host history" below)
+#
+# Namespace: https://serverproject.de/solid-tafel/ns.ttl#
+# (a HASH namespace — see doc/tafel-app-status.md v0.0.9 notes for why
+# a trailing # is required here, not optional, for a single static file)
+#
+# The document itself is served at the NON-fragment part of that IRI:
+#   https://serverproject.de/solid-tafel/ns.ttl
+# A URI fragment (the "#..." part) is never sent to the server — it is
+# stripped and resolved client-side (RFC 3986) — so a GET for
+# ns.ttl#Appointment and a GET for ns.ttl are the SAME HTTP request.
+# One static file therefore serves every term in this vocabulary.
+#
+# Hosting: plain static file + .htaccess (Apache), NOT a Solid Pod /
+# WebACL this time — see "Deploying this file" at the end for the
+# exact .htaccess line and why no ACL file is needed here.
+#
+# Namespace host history (kept for continuity, not current config):
+#   1. First proposed: https://serverproject.de/solid-tafel/ns# —
+#      dropped: no root/nginx access to serverproject.de at the time.
+#   2. Moved to: https://teamid.live/tafel_test/ns# (a Solid Pod,
+#      WAC-controlled) — an ns.acl was drafted for this but is now
+#      UNUSED, since the namespace moved again.
+#   3. v0.0.9 (current): https://serverproject.de/solid-tafel/ns.ttl# —
+#      a hosting method was found after all (static file + .htaccess
+#      AddType, see end of file). This is the version to actually use.
+#
+# Design decisions this file encodes (see doc/pod-layout.md for the
+# container layout and ACLs these classes are used inside of):
+#   - tafel:Appointment reuses schema:Event rather than ical:Vevent.
+#     schema:Event already has startDate/endDate/location/organizer AND
+#     maximumAttendeeCapacity/remainingAttendeeCapacity, which ical lacks.
+#   - Staff roles are modelled with vcard:Group + vcard:hasMember (the
+#     standard lightweight Solid pattern for WebACL acl:agentGroup),
+#     NOT the heavier org: Organization Ontology.
+#   - tafel:Verification stores a RESULT only (status/date/verifier).
+#     It never stores a copy of, or a link to, the underlying document —
+#     that stays in the consumer's own pod (doc/pod-layout.md, Design B
+#     for documents). This is the hybrid approach agreed for v0.0.8.
+
+@prefix tafel:  <https://serverproject.de/solid-tafel/ns.ttl#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <https://schema.org/> .
+@prefix vcard:  <http://www.w3.org/2006/vcard/ns#> .
+@prefix foaf:   <http://xmlns.com/foaf/0.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+#################################################################
+# Ontology header
+#################################################################
+
+<https://serverproject.de/solid-tafel/ns.ttl#>
+    a owl:Ontology ;
+    dcterms:title "Tafel Calendar App vocabulary"@en ;
+    dcterms:description "Terms for distribution appointments, bookings and welfare-proof verification used by the solid-tafel app (Herford + Bielefeld Tafel)."@en ;
+    dcterms:created "2026-10-03"^^xsd:date ;
+    dcterms:source <https://github.com/ewingson/solid-tafel> ;
+    owl:versionInfo "0.3" .
+
+#################################################################
+# tafel:Appointment  —  a distribution slot
+#################################################################
+# Lives in an org pod under /solid-tafel/appointments/ (one resource
+# per appointment, or one container per day — left open, see "Open
+# questions" below).
+
+tafel:Appointment
+    a rdfs:Class ;
+    rdfs:subClassOf schema:Event ;
+    rdfs:label "Tafel distribution appointment"@en ;
+    rdfs:comment """An appointment is a schema:Event with Tafel-specific
+        location and capacity bookkeeping. Reused schema:Event properties:
+        schema:startDate, schema:endDate, schema:location, schema:organizer,
+        schema:maximumAttendeeCapacity, schema:remainingAttendeeCapacity,
+        schema:eventStatus."""@en .
+
+tafel:location
+    a rdf:Property ;
+    rdfs:domain tafel:Appointment ;
+    rdfs:range tafel:LocationCode ;
+    rdfs:label "Tafel location"@en ;
+    rdfs:comment "Which Tafel location this appointment belongs to. More specific than schema:location (which may additionally hold a street address or schema:Place)."@en .
+
+tafel:LocationCode a rdfs:Class ;
+    rdfs:label "Tafel location code"@en .
+
+tafel:herford   a tafel:LocationCode ; rdfs:label "Herford"@en .
+tafel:bielefeld a tafel:LocationCode ; rdfs:label "Bielefeld"@en .
+
+#################################################################
+# tafel:Booking  —  a consumer's request for a slot
+#################################################################
+# Per the hybrid design (doc/pod-layout.md), the FULL booking is
+# written by the consumer app to the CONSUMER's own pod
+# (/solid-tafel/bookings/). The org pod only ever sees a small
+# REFERENCE (tafel:BookingReference) in its own /solid-tafel/bookings/
+# inbox, pointing back at the appointment and (for staff to follow up)
+# at the consumer's booking resource.
+
+tafel:Booking
+    a rdfs:Class ;
+    rdfs:label "Tafel booking"@en ;
+    rdfs:comment "A consumer's request to attend a specific tafel:Appointment. Lives in the consumer's own pod."@en .
+
+tafel:forAppointment
+    a rdf:Property ;
+    rdfs:domain tafel:Booking ;
+    rdfs:range tafel:Appointment ;
+    rdfs:label "booking is for appointment"@en .
+
+tafel:bookingStatus
+    a rdf:Property ;
+    rdfs:domain tafel:Booking ;
+    rdfs:range tafel:BookingStatusCode ;
+    rdfs:label "booking status"@en .
+
+tafel:BookingStatusCode a rdfs:Class ; rdfs:label "Booking status code"@en .
+tafel:requested a tafel:BookingStatusCode ; rdfs:label "Requested"@en .
+tafel:confirmed a tafel:BookingStatusCode ; rdfs:label "Confirmed"@en .
+tafel:cancelled a tafel:BookingStatusCode ; rdfs:label "Cancelled"@en .
+
+tafel:BookingReference
+    a rdfs:Class ;
+    rdfs:label "Booking reference"@en ;
+    rdfs:comment """The SMALL record an org pod stores in its own
+        /solid-tafel/bookings/ inbox, so staff can see demand without
+        the org pod holding full consumer data. Contains only
+        tafel:forAppointment and tafel:bookingResource (a link back to
+        the consumer's own tafel:Booking resource, readable by the
+        relevant staff group per doc/pod-layout.md)."""@en .
+
+tafel:bookingResource
+    a rdf:Property ;
+    rdfs:domain tafel:BookingReference ;
+    rdfs:range rdfs:Resource ;
+    rdfs:label "link to the consumer's own booking resource"@en .
+
+#################################################################
+# tafel:Verification  —  RESULT ONLY, never the document itself
+#################################################################
+# Lives in the org pod under /solid-tafel/verifications/, one resource
+# per consumer (or per booking — open question below). The underlying
+# Sozialhilfe-Bescheid stays in the consumer's own pod
+# (/solid-tafel/documents/) and is never copied or linked from here.
+
+tafel:Verification
+    a rdfs:Class ;
+    rdfs:label "Welfare-proof verification result"@en ;
+    rdfs:comment """Stores ONLY the outcome of a staff member checking a
+        consumer's welfare proof — never the document itself and never a
+        URL to it. This is a deliberate data-minimisation choice (see
+        doc/pod-layout.md, Design B)."""@en .
+
+tafel:verificationStatus
+    a rdf:Property ;
+    rdfs:domain tafel:Verification ;
+    rdfs:range tafel:VerificationStatusCode ;
+    rdfs:label "verification status"@en .
+
+tafel:VerificationStatusCode a rdfs:Class ; rdfs:label "Verification status code"@en .
+tafel:pending  a tafel:VerificationStatusCode ; rdfs:label "Pending"@en .
+tafel:verified a tafel:VerificationStatusCode ; rdfs:label "Verified"@en .
+tafel:expired  a tafel:VerificationStatusCode ; rdfs:label "Expired"@en .
+tafel:rejected a tafel:VerificationStatusCode ; rdfs:label "Rejected"@en .
+
+tafel:verifiedBy
+    a rdf:Property ;
+    rdfs:domain tafel:Verification ;
+    rdfs:range foaf:Agent ;
+    rdfs:label "verified by"@en ;
+    rdfs:comment "WebID of the staff member who performed the check."@en .
+
+tafel:verifiedOn
+    a rdf:Property ;
+    rdfs:domain tafel:Verification ;
+    rdfs:range xsd:date ;
+    rdfs:label "verified on"@en .
+
+tafel:validUntil
+    a rdf:Property ;
+    rdfs:domain tafel:Verification ;
+    rdfs:range xsd:date ;
+    rdfs:label "valid until"@en ;
+    rdfs:comment """Retention / re-verification deadline. Decided default:
+        6 months after tafel:verifiedOn. NOT yet decided: whether expiry
+        is enforced by an automated cleanup job, or left to manual
+        deletion by staff/admin — app logic should not assume either
+        until this is settled."""@en .
+
+#################################################################
+# Staff groups — vcard:Group + vcard:hasMember (NOT org:)
+#################################################################
+# Decided: lighter than the W3C Organization Ontology, and this is
+# exactly the shape WebACL's acl:agentGroup expects.
+#
+# Example instance (this is documentation, not part of the vocabulary
+# itself — the real group documents live at
+# https://herford.meisdata.io/solid-tafel/staff/herford.ttl etc.):
+#
+#   @prefix vcard: <http://www.w3.org/2006/vcard/ns#> .
+#   <#staff> a vcard:Group ;
+#       vcard:hasMember <https://alice.solidweb.org/profile/card#me> ,
+#                        <https://bob.solidweb.org/profile/card#me> .
+
+#################################################################
+# Decisions resolved since the first draft (doc/pod-layout.md §5)
+#################################################################
+# 1. Bookings: hybrid approach confirmed (tafel:Booking in consumer
+#    pod, tafel:BookingReference in org pod).
+# 2. One org pod per location confirmed (herford.meisdata.io,
+#    bielefeld.meisdata.io — temporary domains for the concept).
+# 3. Staff WebIDs may be public in vcard:Group documents: confirmed.
+# 4. A Solid Pod is a PREREQUISITE for consumers; the app offers a
+#    "Get a Pod" link (implemented in v0.0.7/v0.0.8 index.html) rather
+#    than provisioning pods itself.
+# 5. tafel:validUntil default retention: 6 months (see above) — but
+#    see the note there: WHO/WHAT deletes after 6 months is still open.
+# 6. Admin-only settings in `profile/` of the org pod: confirmed, as
+#    proposed in doc/pod-layout.md.
+#
+#################################################################
+# Still open
+#################################################################
+# A. One tafel:Appointment per resource, or several per container
+#    (e.g. one container per day)? Affects whether tafel:Appointment
+#    needs its own identifying slug property.
+# B. Does tafel:Booking need a cancellation reason / timestamp?
+# C. Should tafel:VerificationStatusCode distinguish "rejected" (proof
+#    checked and invalid) from "expired" (proof was once valid, time
+#    ran out)? Modelled as separate codes here; confirm this is wanted.
+# D. Automated expiry job vs manual deletion for the 6-month retention
+#    (see tafel:validUntil comment above).
+#
+#################################################################
+# Deploying this file on serverproject.de (plain Apache, NOT a Pod)
+#################################################################
+# This is a static file on a regular web server, not a Solid Pod, so
+# there is NO WebACL / ns.acl involved here at all — that only applied
+# to the (now unused) teamid.live option. Apache serves any static
+# file publicly by default unless something else restricts it, so as
+# long as nothing in the surrounding server config password-protects
+# /solid-tafel/, this file is already public once it's uploaded.
+#
+# Two things are needed:
+#
+#   1. Upload this file's content as:
+#        /solid-tafel/ns.ttl
+#      (exact path — whatever "ns.ttl" is called on disk in the
+#      doc/ folder of the repo, it must land at that same name on the
+#      live site, since the URL path and the filename are literally
+#      the same thing for a plain static file server — unlike the
+#      Solid Pod case, there's no indirection here.)
+#
+#   2. Add a .htaccess (in /solid-tafel/, or site-wide) with:
+#        AddType text/turtle .ttl
+#      This tells Apache to serve any .ttl file with
+#      "Content-Type: text/turtle" instead of its default guess
+#      (otherwise most Apache configs would serve it as
+#      application/octet-stream or text/plain, which Solid/RDF clients
+#      may refuse to parse as Turtle).
+#
+#      Recommended addition (not strictly required yet, but good
+#      practice for a public vocabulary so other origins' browser-side
+#      code can fetch it without a CORS error later):
+#        <IfModule mod_headers.c>
+#          Header set Access-Control-Allow-Origin "*"
+#        </IfModule>
+#
+#      Caveat: .htaccess directives only take effect if the hosting
+#      account's Apache config allows overrides for that directory
+#      (AllowOverride FileInfo or All). This is the normal default on
+#      shared hosting (it's the usual reason .htaccess exists at all
+#      for people without root access), but it cannot be verified
+#      without access to serverproject.de's actual vhost config.
+#
+#   Verify after deploying:
+#     curl -I https://serverproject.de/solid-tafel/ns.ttl
+#   should return 200 and "Content-Type: text/turtle" — if it instead
+#   shows text/plain or application/octet-stream, the AddType line
+#   either isn't in effect yet or AllowOverride is blocking it.
+#
+# Verify afterwards: `curl -I https://serverproject.de/solid-tafel/ns.ttl` should
+# return 200 and `Content-Type: text/turtle` WITHOUT any authentication
+# header — if it 401s/403s for an anonymous request, the ACL isn't
+# public-read yet.
