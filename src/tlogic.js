@@ -1,8 +1,14 @@
 /**
- * tlogic.js — Tafel Calendar App Logic — v0.0.7
+ * tlogic.js — Tafel Calendar App Logic — v0.0.8
  *
- * OIDC authentication + debug profile display + returning-user hint.
+ * OIDC auth + code + vocab + pod-layout.
  * Inspired by: https://github.com/ewingson/solid-note-experiment/blob/main/slogic.js
+ *
+ * Note on version numbering: a v0.0.7 build existed internally (the
+ * changes listed below) but was never actually deployed, so it is
+ * folded into this v0.0.8 release rather than shipped separately.
+ * v0.0.8 is therefore both the data-modeling release (doc/tafel-vocab.ttl,
+ * doc/pod-layout.md) AND these code robustness fixes.
  *
  * Fetches and displays 7 key parameters from the user's Solid Pod:
  *   1. WebID (unique identifier)
@@ -13,7 +19,7 @@
  *   6. Storage Root
  *   7. OIDC Issuer (Pod Provider)
  *
- * Changes in v0.0.7 (vs v0.0.5):
+ * Changes in this release (vs v0.0.5):
  *   - "Get a Pod" link on the start page (index.html)
  *   - Session is ALWAYS restored through the Inrupt library
  *     (handleIncomingRedirect). localStorage is only a hint (last WebID /
@@ -37,7 +43,7 @@
 // SECTION 1: CONFIGURATION & CONSTANTS
 // ============================================================
 
-const APP_VERSION = '0.0.7';
+const APP_VERSION = '0.0.8';
 const APP_NAME = 'Tafel Calendar App';
 
 // Solid RDF Predicates (URIs for profile properties)
