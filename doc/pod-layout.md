@@ -1,9 +1,15 @@
 # Pod Layout — solid-tafel
 
-**Status:** DRAFT for v0.0.6 (design groundwork, no code change)
+**Status:** v0.0.8 — DELIVERED. All six open questions in §5 resolved; one residual detail flagged there (retention enforcement mechanism).
 **Decision inputs:** org, admin and consumer pods use the **same structure**; everything lives in **one container at the pod root, named after the app: `/solid-tafel/`**.
 
 Differences between roles come from **ACLs and group membership**, not from different schemas.
+
+**Confirmed since the first draft:**
+- Org pod domains (temporary, for the concept — not the real future domains): `https://herford.meisdata.io` and `https://bielefeld.meisdata.io`
+- Application vocabulary namespace: `https://teamid.live/tafel_test/ns#` (hosted on Pal's own teamid.live Solid Pod server, not serverproject.de, since root/nginx access to serverproject.de isn't available) — see [doc/tafel-vocab.ttl](./tafel-vocab.ttl)
+- `tafel:Appointment` is based on `schema:Event` (not `ical:`)
+- Staff groups use `vcard:Group` + `vcard:hasMember` (not `org:`)
 
 ---
 
@@ -162,14 +168,14 @@ sequenceDiagram
 
 ---
 
-## 5. Open questions
+## 5. Open questions — DECIDED
 
-1. Design A, B or the hybrid for bookings?
-2. One org pod per location (herford/bielefeld), as assumed here, or one shared org pod with location as data?
-3. May staff WebIDs be public in group documents (see the caveat above)?
-4. Do consumers without their own pod get a pod from the app, or is a Solid pod a prerequisite? (Herford will need an answer.)
-5. How long are verification results kept, and who deletes them?
-6. Where do admin-only settings (capacity defaults, opening days) live? Proposed: `profile/` of the org pod.
+1. ~~Design A, B or the hybrid for bookings?~~ **Decided: hybrid.** Documents stay in the consumer pod; the org pod stores only verification results; bookings start simple on the org side.
+2. ~~One org pod per location, or one shared org pod with location as data?~~ **Decided: one org pod per location.** `herford.meisdata.io` / `bielefeld.meisdata.io` (temporary domains for the concept, not the real future ones).
+3. ~~May staff WebIDs be public in group documents?~~ **Decided: yes.**
+4. ~~Do consumers without their own pod get a pod from the app, or is a Solid pod a prerequisite?~~ **Decided: a pod is a prerequisite.** The app does not provision pods; it offers a "Get a Pod" link on the start page instead (implemented in the app's guest screen, linking to solidproject.org/users/get-a-pod).
+5. ~~How long are verification results kept, and who deletes them?~~ **Partly decided: kept 6 months.** Still open: whether that expiry is enforced automatically (a cleanup job) or left to manual deletion by staff/admin — not yet specified, flagged in doc/tafel-vocab.ttl.
+6. ~~Where do admin-only settings live?~~ **Decided: yes, as proposed — `profile/` of the org pod.**
 
 ---
 
