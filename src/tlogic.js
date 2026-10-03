@@ -1,14 +1,19 @@
 /**
- * tlogic.js — Tafel Calendar App Logic — v0.0.8
+ * tlogic.js — Tafel Calendar App Logic — v0.0.9
  *
  * OIDC auth + code + vocab + pod-layout.
  * Inspired by: https://github.com/ewingson/solid-note-experiment/blob/main/slogic.js
  *
  * Note on version numbering: a v0.0.7 build existed internally (the
- * changes listed below) but was never actually deployed, so it is
- * folded into this v0.0.8 release rather than shipped separately.
- * v0.0.8 is therefore both the data-modeling release (doc/tafel-vocab.ttl,
- * doc/pod-layout.md) AND these code robustness fixes.
+ * changes listed below) but was never actually deployed, so it was
+ * folded into v0.0.8 rather than shipped separately. v0.0.9 changes
+ * NOTHING in this file functionally — the only change this release is
+ * the tafel: vocabulary namespace moving to
+ * https://serverproject.de/solid-tafel/ns.ttl# (see doc/ns.ttl and
+ * doc/pod-layout.md). This app doesn't reference the vocabulary at all
+ * yet (that starts in v0.1.0's appointment fetching), so the version
+ * bump here is purely to keep index.html/tlogic.js/doc/* numbered
+ * together as one release.
  *
  * Fetches and displays 7 key parameters from the user's Solid Pod:
  *   1. WebID (unique identifier)
@@ -43,7 +48,7 @@
 // SECTION 1: CONFIGURATION & CONSTANTS
 // ============================================================
 
-const APP_VERSION = '0.0.8';
+const APP_VERSION = '0.0.9';
 const APP_NAME = 'Tafel Calendar App';
 
 // Solid RDF Predicates (URIs for profile properties)

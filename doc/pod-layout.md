@@ -1,13 +1,13 @@
 # Pod Layout — solid-tafel
 
-**Status:** v0.0.8 — DELIVERED. All six open questions in §5 resolved; one residual detail flagged there (retention enforcement mechanism).
+**Status:** v0.0.9 — DELIVERED. All six open questions in §5 resolved; one residual detail flagged there (retention enforcement mechanism). From v0.0.9 onward this file and doc/ns.ttl are treated as the archived reference/planning baseline — future patches focus on index.html/tlogic.js/tafel-app-status.md unless the vocabulary or pod layout itself needs to change again (see the note on this in tafel-app-status.md).
 **Decision inputs:** org, admin and consumer pods use the **same structure**; everything lives in **one container at the pod root, named after the app: `/solid-tafel/`**.
 
 Differences between roles come from **ACLs and group membership**, not from different schemas.
 
 **Confirmed since the first draft:**
 - Org pod domains (temporary, for the concept — not the real future domains): `https://herford.meisdata.io` and `https://bielefeld.meisdata.io`
-- Application vocabulary namespace: `https://teamid.live/tafel_test/ns#` (hosted on Pal's own teamid.live Solid Pod server, not serverproject.de, since root/nginx access to serverproject.de isn't available) — see [doc/tafel-vocab.ttl](./tafel-vocab.ttl)
+- Application vocabulary namespace: **`https://serverproject.de/solid-tafel/ns.ttl#`** (final, v0.0.9) — see [doc/ns.ttl](./ns.ttl). This moved twice: first proposed on serverproject.de (dropped — no root/nginx access at the time), then to teamid.live as a Solid Pod resource with its own ns.acl (that WebACL work is now unused), and finally back to serverproject.de once a static-file hosting method (`.htaccess` + `AddType text/turtle .ttl`) was found. No WebACL is needed for this final version — it's a plain public static file, not a Pod resource.
 - `tafel:Appointment` is based on `schema:Event` (not `ical:`)
 - Staff groups use `vcard:Group` + `vcard:hasMember` (not `org:`)
 

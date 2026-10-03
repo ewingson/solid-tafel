@@ -1,17 +1,33 @@
-# doc/tafel-vocab.ttl
+# doc/ns.ttl
 #
 # Tafel Calendar App — application vocabulary
-# Status: v0.0.8 — DELIVERED (data modeling; no app code changes)
+# Status: v0.0.9 — DELIVERED (namespace relocation; no class/property
+# changes from v0.0.8, see "Namespace host history" below)
 #
-# Namespace: https://teamid.live/tafel_test/ns#
-# The document itself must be served at the NON-fragment part of that
-# IRI: https://teamid.live/tafel_test/ns (no trailing slash, no file
-# extension in the URL — "tafel-vocab.ttl" is only this file's local
-# name on disk, not part of the dereferenceable URL). Content-Type
-# must be text/turtle, and the resource must be publicly readable
-# (see "Deploying on teamid.live" note at the end of this file).
-# teamid.live is Pal's own server, so this does not need the
-# serverproject.de nginx access that isn't available.
+# Namespace: https://serverproject.de/solid-tafel/ns.ttl#
+# (a HASH namespace — see doc/tafel-app-status.md v0.0.9 notes for why
+# a trailing # is required here, not optional, for a single static file)
+#
+# The document itself is served at the NON-fragment part of that IRI:
+#   https://serverproject.de/solid-tafel/ns.ttl
+# A URI fragment (the "#..." part) is never sent to the server — it is
+# stripped and resolved client-side (RFC 3986) — so a GET for
+# ns.ttl#Appointment and a GET for ns.ttl are the SAME HTTP request.
+# One static file therefore serves every term in this vocabulary.
+#
+# Hosting: plain static file + .htaccess (Apache), NOT a Solid Pod /
+# WebACL this time — see "Deploying this file" at the end for the
+# exact .htaccess line and why no ACL file is needed here.
+#
+# Namespace host history (kept for continuity, not current config):
+#   1. First proposed: https://serverproject.de/solid-tafel/ns# —
+#      dropped: no root/nginx access to serverproject.de at the time.
+#   2. Moved to: https://teamid.live/tafel_test/ns# (a Solid Pod,
+#      WAC-controlled) — an ns.acl was drafted for this but is now
+#      UNUSED, since the namespace moved again.
+#   3. v0.0.9 (current): https://serverproject.de/solid-tafel/ns.ttl# —
+#      a hosting method was found after all (static file + .htaccess
+#      AddType, see end of file). This is the version to actually use.
 #
 # Design decisions this file encodes (see doc/pod-layout.md for the
 # container layout and ACLs these classes are used inside of):
@@ -26,7 +42,7 @@
 #     that stays in the consumer's own pod (doc/pod-layout.md, Design B
 #     for documents). This is the hybrid approach agreed for v0.0.8.
 
-@prefix tafel:  <https://teamid.live/tafel_test/ns#> .
+@prefix tafel:  <https://serverproject.de/solid-tafel/ns.ttl#> .
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl:    <http://www.w3.org/2002/07/owl#> .
@@ -40,13 +56,13 @@
 # Ontology header
 #################################################################
 
-<https://teamid.live/tafel_test/ns#>
+<https://serverproject.de/solid-tafel/ns.ttl#>
     a owl:Ontology ;
     dcterms:title "Tafel Calendar App vocabulary"@en ;
     dcterms:description "Terms for distribution appointments, bookings and welfare-proof verification used by the solid-tafel app (Herford + Bielefeld Tafel)."@en ;
     dcterms:created "2026-10-03"^^xsd:date ;
     dcterms:source <https://github.com/ewingson/solid-tafel> ;
-    owl:versionInfo "0.2" .
+    owl:versionInfo "0.3" .
 
 #################################################################
 # tafel:Appointment  —  a distribution slot
@@ -223,41 +239,54 @@ tafel:validUntil
 #    (see tafel:validUntil comment above).
 #
 #################################################################
-# Deploying this file on teamid.live (a Solid Pod server)
+# Deploying this file on serverproject.de (plain Apache, NOT a Pod)
 #################################################################
-# Serving a vocabulary document FROM a Solid Pod is normal and fully
-# supported — a pod is just an LDP/HTTP resource server, so the only
-# real requirements are: (1) it's a non-container resource at exactly
-# https://teamid.live/tafel_test/ns, (2) its Content-Type is
-# text/turtle, (3) it is readable by the public (acl:agentClass
-# foaf:Agent, acl:mode acl:Read) — app vocabularies are normally public
-# even when the data using them isn't.
+# This is a static file on a regular web server, not a Solid Pod, so
+# there is NO WebACL / ns.acl involved here at all — that only applied
+# to the (now unused) teamid.live option. Apache serves any static
+# file publicly by default unless something else restricts it, so as
+# long as nothing in the surrounding server config password-protects
+# /solid-tafel/, this file is already public once it's uploaded.
 #
-# Two ways to get it there, depending on what access is available:
+# Two things are needed:
 #
-#   (a) Direct filesystem drop-in (fastest, if there's shell/SSH access
-#       to the box running the Solid server): place this file's
-#       CONTENT at the path the server's data directory maps to
-#       "/tafel_test/ns" (exact filename on disk doesn't matter to
-#       HTTP clients, only the Content-Type the server reports does —
-#       Community Solid Server's file backend infers Content-Type from
-#       the file extension, so name the on-disk file "ns.ttl" and
-#       configure/alias it to be served at the path without ".ttl", OR
-#       check whether the server config allows setting the content
-#       type via a sidecar metadata file). Then add a `.acl` (or
-#       `ns.acl`) granting public Read — see doc/pod-layout.md for the
-#       ACL template shape.
+#   1. Upload this file's content as:
+#        /solid-tafel/ns.ttl
+#      (exact path — whatever "ns.ttl" is called on disk in the
+#      doc/ folder of the repo, it must land at that same name on the
+#      live site, since the URL path and the filename are literally
+#      the same thing for a plain static file server — unlike the
+#      Solid Pod case, there's no indirection here.)
 #
-#   (b) HTTP PUT with an authenticated Solid client (if only pod-level
-#       write access is available, not shell access):
-#         PUT https://teamid.live/tafel_test/ns
-#         Content-Type: text/turtle
-#         Authorization: DPoP <token>   (handled by a Solid client lib,
-#                                         e.g. @inrupt/solid-client)
-#       This creates the resource as part of the pod; its ACL then
-#       needs the public-Read authorization added the same way.
+#   2. Add a .htaccess (in /solid-tafel/, or site-wide) with:
+#        AddType text/turtle .ttl
+#      This tells Apache to serve any .ttl file with
+#      "Content-Type: text/turtle" instead of its default guess
+#      (otherwise most Apache configs would serve it as
+#      application/octet-stream or text/plain, which Solid/RDF clients
+#      may refuse to parse as Turtle).
 #
-# Verify afterwards: `curl -I https://teamid.live/tafel_test/ns` should
+#      Recommended addition (not strictly required yet, but good
+#      practice for a public vocabulary so other origins' browser-side
+#      code can fetch it without a CORS error later):
+#        <IfModule mod_headers.c>
+#          Header set Access-Control-Allow-Origin "*"
+#        </IfModule>
+#
+#      Caveat: .htaccess directives only take effect if the hosting
+#      account's Apache config allows overrides for that directory
+#      (AllowOverride FileInfo or All). This is the normal default on
+#      shared hosting (it's the usual reason .htaccess exists at all
+#      for people without root access), but it cannot be verified
+#      without access to serverproject.de's actual vhost config.
+#
+#   Verify after deploying:
+#     curl -I https://serverproject.de/solid-tafel/ns.ttl
+#   should return 200 and "Content-Type: text/turtle" — if it instead
+#   shows text/plain or application/octet-stream, the AddType line
+#   either isn't in effect yet or AllowOverride is blocking it.
+#
+# Verify afterwards: `curl -I https://serverproject.de/solid-tafel/ns.ttl` should
 # return 200 and `Content-Type: text/turtle` WITHOUT any authentication
 # header — if it 401s/403s for an anonymous request, the ACL isn't
 # public-read yet.
