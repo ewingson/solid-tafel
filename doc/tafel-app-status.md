@@ -1,29 +1,29 @@
 ---
 name: tafel-app-status
-description: Tafel Calendar App (Herford + Bielefeld) — live v0.0.5, v0.0.9 delivered, final namespace serverproject.de/solid-tafel/ns.ttl, archive plan, roadmap
+description: Tafel Calendar App (Herford + Bielefeld) — v0.0.9 live/deployed, ns.ttl confirmed serving, v0.0.10 doc-upload+roles planning
 ---
 
 ## Versioning (semver)
 
 - doc/v0.1.md was intended as a starter/spec, not a release number
-- Live now: v0.0.5
+- Live now: v0.0.9 (supersedes v0.0.5)
 - Patch releases are 0.0.x; minor bump to v0.1.0 once there is a very rough UI plus very first functionality
 - v0.0.6 = design groundwork (doc/pod-layout.md, first draft)
 - An internal v0.0.7 build (code robustness fixes) existed but was never deployed, folded into v0.0.8
 - v0.0.8 = code + vocabulary (then doc/tafel-vocab.ttl) + pod-layout.md, namespace on teamid.live at the time
-- v0.0.9 = DELIVERED: namespace relocated to its final home; zero functional code changes (index.html/tlogic.js only got the version-string bump); doc/tafel-vocab.ttl renamed to doc/ns.ttl
+- v0.0.9 = DEPLOYED: namespace relocated to its final home; zero functional code changes (index.html/tlogic.js only got the version-string bump); doc/tafel-vocab.ttl renamed to doc/ns.ttl
 - Going forward: index.html, tlogic.js, tafel-app-status.md are the files expected to keep changing each patch; doc/pod-layout.md and doc/ns.ttl are intended as an archived reference/planning baseline, not routinely edited — caveat below
 
-## Current State: v0.0.5 ✅ Live / v0.0.9 ready to deploy
+## Current State: v0.0.9 ✅ Live (deployed, supersedes v0.0.5)
 
-**What's working (v0.0.5, live):**
+**What's working (originally shipped in v0.0.5, carried forward — v0.0.9 is live now):**
 - OIDC authentication via @inrupt/solid-client-authn@4.0.0
 - RDF profile document fetch + parse with N3@2.0.3
 - Debug display of 7 user parameters (WebID, name, preferences, type indices, storage, issuer)
 - localStorage session persistence (returning users skip re-login)
 - Deployed at serverproject.de/solid-tafel/
 
-**v0.0.9 (built + tested, not yet deployed by user):** same feature set as v0.0.8 (Get a Pod link, single-sourced version number, session-restore/issuer/redirect fixes). 14-scenario regression suite passing against the real N3 2.0.3 parser and the real @inrupt/solid-client-authn-browser 4.0.0 bundle. This app does not reference the tafel: vocabulary at all yet — that starts with v0.1.0's appointment fetching.
+**v0.0.9 (deployed):** same feature set as v0.0.8 (Get a Pod link, single-sourced version number, session-restore/issuer/redirect fixes). 14-scenario regression suite passed against the real N3 2.0.3 parser and the real @inrupt/solid-client-authn-browser 4.0.0 bundle, before deployment. This app does not reference the tafel: vocabulary at all yet — that starts with v0.1.0's appointment fetching.
 
 **Tech stack:**
 - Vanilla JS + HTML (no frameworks)
@@ -74,30 +74,4 @@ description: Tafel Calendar App (Herford + Bielefeld) — live v0.0.5, v0.0.9 de
 
 **v0.1.0 (minor):** very rough UI + very first functionality. Candidate scope (not yet confirmed):
 - Location radio buttons (Herford / Bielefeld)
-- Fetch appointments from the Org Pod's `/solid-tafel/appointments/` container, typed as `tafel:Appointment`/`schema:Event`
-- Parse appointment RDF
-- Display as simple list (not calendar UI yet)
-- Role detection via `staff/*.ttl` group documents (`vcard:Group`)
-
-**Not in that first functional release:**
-- No booking functionality
-- No staff verification view
-- No document uploads
-- No WebACL management
-
-**Later:**
-- Booking logic + document upload
-- Staff view (verify proofs, manage appointments)
-- Target: MVP by June 2027, testing with Herford + Bielefeld
-
----
-
-## Known Unknowns / Blockers
-
-- Calendar UI: widget vs simple list (needs Herford feedback)
-- Retention enforcement mechanism (automated vs manual) for the 6-month verification-result expiry
-- One tafel:Appointment per resource vs several per container (per-day container?)
-- Whether tafel:Booking needs a cancellation reason/timestamp
-- Whether "rejected" vs "expired" verification status split is actually wanted
-- Namespace document (`https://serverproject.de/solid-tafel/ns.ttl`) not yet actually uploaded/served — `.htaccess` AllowOverride unverified
-- The archive-vs-revisit tension noted above: doc/ns.ttl and pod-layout.md will need unfreezing before v0.3/v0.4 (booking, verification) land
+- Fetch appointments from the Org Pod's `/solid-tafel/appointments/` container, typed as
