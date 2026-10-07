@@ -42,36 +42,87 @@ description: Tafel Calendar App (Herford + Bielefeld) — v0.0.9 live/deployed, 
 
 ## Vocabulary & namespace — FINAL (v0.0.9)
 
-- Final namespace: **`https://serverproject.de/solid-tafel/ns.ttl#`** — a hash namespace (trailing `#` is required, not stylistic: a URI fragment is never sent to the server per RFC 3986, so `ns.ttl#Appointment` and `ns.ttl` are the same HTTP request; without the `#`, `tafel:Appointment` would wrongly concatenate to `ns.ttlAppointment`)
-- Namespace host history: (1) serverproject.de first proposed, dropped for lack of root/nginx access, (2) moved to teamid.live as a Solid Pod resource with a drafted `ns.acl` (owner WebID `https://teamid.live/tafel_test/profile/card#me`) — now UNUSED, (3) v0.0.9: back to serverproject.de, found a hosting method: plain static file + `.htaccess` with `AddType text/turtle .ttl`
-- This is a plain static file on Apache, NOT a Solid Pod resource — no WebACL applies; Apache serves it publicly by default once uploaded, as long as nothing else password-protects that path
-- Deployment steps (v0.0.9): upload file content to `/solid-tafel/ns.ttl` on serverproject.de; add `.htaccess` with `AddType text/turtle .ttl` (optionally `Header set Access-Control-Allow-Origin "*"` for future browser-side fetches); verify with `curl -I https://serverproject.de/solid-tafel/ns.ttl` expecting `200` + `Content-Type: text/turtle`
-- Caveat (not verified, no access to serverproject.de config): `.htaccess` only works if `AllowOverride FileInfo`/`All` is enabled for that directory — normal on shared hosting, but unconfirmed here
-- `tafel:Appointment` is based on `schema:Event` (not `ical:`); staff groups use `vcard:Group` + `vcard:hasMember` (not `org:`) — unchanged from v0.0.8, only the namespace host/path changed in v0.0.9
+- Final namespace: **`https://serverproject.de/solid-tafel/ns.ttl#`** — a hash namespace (trailing `#` is required: a URI fragment is never sent to the server per RFC 3986, so `ns.ttl#Appointment` and `ns.ttl` are the same HTTP request; without the `#`, `tafel:Appointment` would wrongly concatenate to `ns.ttlAppointment`)
+- Namespace host history: (1) serverproject.de first proposed, dropped for lack of root/nginx access, (2) moved to teamid.live as a Solid Pod resource with a drafted `ns.acl` (owner WebID `https://teamid.live/tafel_test/profile/card#me`) — now UNUSED, (3) v0.0.9: back to serverproject.de, static file + `.htaccess` with `AddType text/turtle .ttl`
+- Plain static file on Apache, NOT a Solid Pod resource — no WebACL applies
+- Deployment: `/solid-tafel/ns.ttl` on serverproject.de, `.htaccess` with `AddType text/turtle .ttl` — **confirmed live and serving correctly**, AllowOverride concern resolved
+- `tafel:Appointment` based on `schema:Event`; staff groups use `vcard:Group` + `vcard:hasMember`
 - `tafel:Verification` stores a result only (status/verifier/date), never a document copy/link
 - Verification-result retention: 6 months (decided). NOT yet decided: automated expiry job vs. manual deletion
 
-**Data-modeling assessment:** sincere and feasible for what v0.1.0–v0.2 actually need (appointments, staff groups). The genuinely open parts (per-resource vs per-container appointments, cancellation metadata, rejected-vs-expired split, retention enforcement mechanism) don't block the near-term roadmap, since booking/verification features are v0.3/v0.4 scope. They WILL need revisiting before those land — which is slightly in tension with "leave ns.ttl as archive," since at that point the archived file would need unfreezing. Flagged, not yet resolved.
+**Data-modeling assessment:** sincere and feasible for what v0.1.0–v0.2 actually need. Genuinely open parts (per-resource vs per-container appointments, cancellation metadata, rejected-vs-expired split, retention enforcement) don't block the near-term roadmap but will need revisiting before v0.3/v0.4 — in tension with "leave ns.ttl as archive."
 
-**On namespace public-readability:** yes, correct and standard practice — vocabularies are conventionally public even when the data instances using them are private (schema.org, foaf, vcard all work this way). Gatekeeping the vocabulary itself would undermine the interoperability that is the point of using a shared/Solid-style vocabulary at all.
+**On namespace public-readability:** correct, standard practice — vocabularies are conventionally public even when data instances using them are private.
 
 ---
 
 ## Pod architecture decisions — all six open questions resolved
 
-- Org, admin and consumer pods all use the same pod structure (standard Solid POD), differentiated by ACL/role rather than schema
-- All app data lives in one container at the pod root, named after the app: `/solid-tafel/`
-- The two (temporary) org pod domains are confirmed: `https://herford.meisdata.io` and `https://bielefeld.meisdata.io` — not the real future domains
-- Booking approach: hybrid (documents stay in the consumer pod, org stores only verification results; bookings start simple on the org side) — confirmed
-- Staff WebIDs may be public in the staff group documents — confirmed
-- Admin-only settings live in `profile/` of the org pod — confirmed, as proposed
-- A Solid Pod is a prerequisite for consumers; the app does not provision pods, it offers a "Get a Pod" link instead — confirmed, implemented
-- doc/pod-layout.md: all six open questions in §5 marked decided; file now treated as the archived reference baseline
+- Org, admin and consumer pods all use the same pod structure, differentiated by ACL/role rather than schema
+- All app data lives in `/solid-tafel/` at the pod root
+- Org pod domains used in docs so far: `https://herford.meisdata.io` / `https://bielefeld.meisdata.io`
+- High-probability replacement: `https://teamid.live/herford` / `https://teamid.live/bielefeld` (path-based pods on teamid.live) — not yet fully confirmed. Each would need its own CSS account/pod + WebID
+- Booking: hybrid (documents in consumer pod, org stores only verification results)
+- Staff WebIDs may be public in group documents
+- Admin-only settings live in `profile/` of the org pod
+- A Solid Pod is a prerequisite for consumers; app offers a "Get a Pod" link
+- doc/pod-layout.md: all six questions resolved; treated as archived reference baseline
 
 ---
 
 ## Roadmap
 
-**v0.1.0 (minor):** very rough UI + very first functionality. Candidate scope (not yet confirmed):
+**v0.1.0 (minor):** rough UI + first functionality. Candidate scope:
 - Location radio buttons (Herford / Bielefeld)
-- Fetch appointments from the Org Pod's `/solid-tafel/appointments/` container, typed as
+- Fetch appointments from org pod's `/solid-tafel/appointments/`, typed as `tafel:Appointment`/`schema:Event`
+- Parse appointment RDF, display as simple list
+- Role detection via `staff/*.ttl` group documents
+
+**Not in that first release:** booking, staff verification view, document uploads, WebACL management
+
+**Later:** booking logic + document upload, staff view, MVP target June 2027
+
+---
+
+## v0.0.10+ planning: document upload & roles (pre-code concept review)
+
+- v0.0.10 splits into: document (Sozialhilfebescheid) upload, role differentiation by WebID, calendar UI — in that order, calendar last
+- Consumer uploads to `{pod-root}/solid-tafel/documents/`
+- Roles: admin (`staff/admins.ttl`), staff/member (`staff/{location}.ttl`), else consumer — read from the ORG pod, never self-declared
+- First runtime step after login: evaluate assigned rights
+- v0.0.10 shows a role icon; any role can upload; upload-only first, verification deferred
+
+**Assessment:**
+- Role source of truth stays the org pod's group docs, never the consumer's own profile
+- "Upload first" (priority) and "evaluate rights first" (runtime order) aren't contradictory — role detection is plumbing upload depends on
+- Role display needs no location UI: probe both org pods' group docs silently
+- But the staff-read ACL grant on an uploaded document needs a location, which nothing captures yet — resolution: v0.0.10's upload lands PDF in consumer's own pod only, status defaults `tafel:pending`, no ACL grant yet; location + grant become part of the verification patch
+- Vocab gap: `tafel:Verification` has no property linking it to the uploaded document — needs a small addition (`tafel:forDocument`) before the verification patch; first real instance of the archive-vs-revisit tension
+- Binary+metadata pairing undecided; filename/versioning policy undecided
+- New dependency likely needed: `@inrupt/solid-client` or raw binary PUT — `tlogic.js` currently read-only
+
+**Org-pod determination & admin bootstrap:**
+- Org pod URLs NOT dynamically discovered — hardcoded array, pending final domain choice; code should keep this a single easily-edited list, location derived from whichever entry matched
+- It's WRITE access to `staff/*.ttl` that's admin-only, not read — read is public by design
+- First admin bootstrapped out-of-band: manually create `staff/admins.ttl` with the first admin's WebID as `vcard:hasMember`, AND manually set Write+Control on that container's ACL. Two manual steps, no app can do this for itself
+- No admin-management UI exists or is planned; manual editing is fine at PoC scale
+
+**Feasibility for 0.0.10 — upload before role detection:**
+- Upload has zero dependency on org pod domains — buildable/testable today regardless of which domains end up final
+- Role detection depends on the org pods existing and being reachable — still unconfirmed, likely not provisioned yet
+- Recommended: role detection fails open — unreachable org pod = "not staff there," same as the default. Both ship in 0.0.10, but upload is verified first since it has no external dependency
+
+**Proposed three-patch plan (not yet confirmed):**
+1. **0.0.10**: role display via org-pod probing (fail-open) + upload mechanics (own pod only, no ACL, status=pending) + `tafel:forDocument` vocab addition
+2. **0.0.11**: staff-read ACL grant (location decision happens here) + minimal staff verification UI
+3. **0.0.12 / v0.1.0**: calendar UI, appointment fetching, booking
+
+## Known Unknowns / Blockers
+
+- Calendar UI: widget vs simple list (needs Herford feedback)
+- Retention enforcement mechanism (automated vs manual)
+- Appointment granularity (per-resource vs per-container)
+- Whether tafel:Booking needs cancellation metadata
+- Whether rejected-vs-expired split is wanted
+- v0.0.9 deployed and confirmed stable. `https://serverproject.de/solid-tafel/ns.ttl` confirmed serving `text/turtle` — resolved, no longer open
+- Archive-vs-revisit tension: doc/ns.ttl and pod-layout.md will need unfreezing before v0.3/v0.4 land
