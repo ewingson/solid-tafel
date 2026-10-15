@@ -1,13 +1,8 @@
----
-title: Pflichtenheft — Tafel-Kalender-App „solid-tafel“
-
----
-
 # Pflichtenheft — Tafel-Kalender-App „solid-tafel“
 
 | | |
 |---|---|
-| **Dokumentversion** | 1.0 — Entwurf zur Abstimmung |
+| **Dokumentversion** | 1.1 — Entwurf nach Gegenprüfung (Änderungen gegenüber 1.0: Anhang C) |
 | **Bezugsstand** | App v0.0.9 (live) · Vokabular `ns.ttl` v0.3 · `pod-layout.md` (v0.0.9) |
 | **Zielstand** | MVP für **einen** Standort (Tafel Herford) |
 | **Autor** | Pal (meisdata / ewingson), erarbeitet mit Claude |
@@ -19,6 +14,7 @@ title: Pflichtenheft — Tafel-Kalender-App „solid-tafel“
 - **Priorität:** **M** = Muss (ohne geht das MVP nicht) · **S** = Soll (wichtig, blockiert das MVP aber nicht) · **K** = Kann (später).
 - **IDs:** `AF-` Architekturfestlegung · `FA-` funktionale Anforderung · `NFA-` nichtfunktionale Anforderung · `D-` offene Entscheidung · `R-` Risiko · `T-` Aufgabe (To-do) · `S-` Sicherheitstest.
 - **Lernhinweis** markiert Stellen, an denen Solid-Einsteiger erfahrungsgemäß stolpern.
+- **`{POD}`** steht für die Wurzel-URL eines Pods **mit** abschließendem `/`, z. B. `https://teamid.live/herford/`. Eine Adresse wird also als `{POD}solid-tafel/bookings/` geschrieben.
 - **Zeitangaben fehlen absichtlich.** Die Reihenfolge der Meilensteine ist verbindlich, Zeitpläne nicht.
 - Alles, was in früheren Gesprächen bereits entschieden wurde, steht als **Festlegung** da. Alles, was noch offen ist, steht im **Entscheidungsprotokoll (Abschnitt 14)** mit einer Empfehlung.
 
@@ -90,22 +86,43 @@ Die App **schreibt noch nichts**. Es gibt bisher keinen Schreibpfad.
 
 | ID | Annahme |
 |---|---|
-| A-1 | Der Org-Pod Herford liegt auf einer Community Solid Server-Instanz (CSS). Arbeitsannahme für die URL: `https://teamid.live/herford/` (noch nicht final, siehe D-09). |
+| A-1 | Der Org-Pod Herford liegt auf einer Community Solid Server-Instanz (CSS); URL und WebID sind festgelegt (Abschnitt 2.3). |
 | A-2 | Gäste haben einen Pod bei einem beliebigen Anbieter (z. B. solidweb.org, teamid.live). Die App stellt keinen Pod bereit. |
 | A-3 | Staff und Admin haben WebIDs, die von Pal in die Gruppendokumente eingetragen werden. |
 | A-4 | Der Org-Pod ist so konfiguriert, dass fremde Identitätsanbieter (andere Issuer) akzeptiert werden. Das ist zu testen (T-0.9). |
 | A-5 | Pro Zeitfenster sind höchstens etwa 100 Buchungen zu erwarten. |
+| A-6 | Der Org-Pod und der erste Test-Gast liegen auf **demselben Server** (teamid.live). Das genügt für die Entwicklung, beweist aber **nicht**, dass Zugriffe über Servergrenzen hinweg funktionieren (siehe R-02, R-12, T-0.3). |
+
+### 2.3 Festgelegte Konten
+
+| Zweck | Pod | WebID |
+|---|---|---|
+| **Org-Pod = Admin-Pod** (Herford) | `https://teamid.live/herford/` | `https://teamid.live/herford/profile/card#me` |
+| **Test-Gast** | `https://teamid.live/tafel_test/` | `https://teamid.live/tafel_test/profile/card#me` |
+
+Weitere Testkonten stehen in T-0.3. Der Pod `tafel_test` war zeitweise als Ablageort des Namensraums vorgesehen; der Namensraum liegt jetzt endgültig bei `https://serverproject.de/solid-tafel/ns.ttl#`. Falls unter `tafel_test` noch Reste davon liegen (`ns`, `ns.acl`), werden sie entfernt (T-0.12).
 
 ---
 
 ## 3. Rollen
+
+### 3.1 Ein Pod-Typ, mehrere Rollen
+
+Alle Pods sind **architektonisch gleich**: normale Solid-Pods mit WebID, Speicher und Zugriffsregeln (AF-02). Es gibt keinen „Spezial-Pod“ für die Tafel.
+
+- Der **Org-Pod ist zugleich der Admin-Pod.** Er gehört der Organisation (WebID `https://teamid.live/herford/profile/card#me`). Wer diese WebID besitzt, ist Eigentümer und damit Admin.
+- Ein **Staff-Pod** ist der ganz normale Pod einer mitarbeitenden Person. Die Mitarbeiterrolle entsteht **nicht** durch den Pod, sondern dadurch, dass ihre WebID in der Staff-Liste des Org-Pods steht.
+- Ein **Gast-Pod** ist der ganz normale Pod eines Gastes.
+- Eine **Rolle ist eine Beziehung** einer WebID zur Organisation, keine Eigenschaft eines Pods. Dieselbe Person kann in einem anderen Zusammenhang Gast sein.
+
+### 3.2 Rollentabelle
 
 | Rolle | Wie erkannt | Darf | Darf nicht |
 |---|---|---|---|
 | **Besucher** (nicht eingeloggt) | keine Sitzung | Login starten, „Get a Pod“, Datenschutzhinweis lesen; optional Zeitfenster ansehen (FA-Z6, K) | alles andere |
 | **Gast** (Endverbraucher, `consumer`) | eingeloggt, WebID in keiner Gruppe | Zeitfenster ansehen; Buchung anfragen und stornieren; PDF hochladen, ansehen, löschen; Freigabe erteilen und widerrufen; eigene Status sehen | Zeitfenster ändern; fremde Daten lesen; Status setzen |
 | **Staff** (Mitarbeitende) | WebID steht in `staff/herford.ttl` | alles, was ein Gast darf, plus: Zeitfenster anlegen, ändern, absagen; Anfragen bestätigen oder ablehnen; Tagesliste; eingereichte Bescheide ansehen (nur bei Freigabe) und Status setzen | Staff-Listen ändern |
-| **Admin** | WebID steht in `staff/admins.ttl` | alles, was Staff darf, plus Aufräumen abgelaufener Daten (FA-V6) | (Staff-Listen werden manuell gepflegt, FA-R4) |
+| **Admin** | WebID ist die des Org-Pods (`ORG_WEBID`, automatisch) **oder** steht in `staff/admins.ttl` | alles, was Staff darf, plus Aufräumen abgelaufener Daten (FA-V6); Staff- und Admin-Listen im MVP ohne Oberfläche, Pflege manuell (FA-R4) | – |
 
 > **Lernhinweis (wichtig):** Die App **versteckt** Funktionen je nach Rolle. Das ist nur Bequemlichkeit. **Die eigentliche Sicherheit sind die Zugriffsregeln (ACL) der Pods.** Jemand, der die Entwicklerkonsole öffnet, kann die Oberfläche umgehen, aber nicht die ACL. Deshalb gilt jede Berechtigungsanforderung in diesem Dokument zweimal: einmal in der Oberfläche, einmal in der ACL.
 
@@ -116,18 +133,19 @@ Die App **schreibt noch nichts**. Es gibt bisher keinen Schreibpfad.
 | ID | Festlegung |
 |---|---|
 | AF-01 | Reine Client-App (HTML + JavaScript), statisch bei serverproject.de ausgeliefert. Keine eigene Server-Logik. |
-| AF-02 | Zwei Arten von Pods (Org-Pod, Gast-Pod) mit **gleicher Grundstruktur**; alle App-Daten liegen im Container `/solid-tafel/` an der Pod-Wurzel. |
-| AF-03 | **Ein** Org-Pod im MVP. Konfiguration über `ORG_POD_URL` in `config.js`, als Liste mit einem Eintrag (zukunftsfähig). |
-| AF-04 | Rollen stammen ausschließlich aus den Gruppendokumenten des Org-Pods (`vcard:Group` + `vcard:hasMember`), nie aus dem eigenen Profil des Nutzers. |
+| AF-02 | **Alle Pods haben dieselbe Architektur** (Org-/Admin-Pod, Staff-Pods, Gast-Pods): normale Solid-Pods; alle App-Daten liegen im Container `{POD}solid-tafel/` mit **demselben Satz an Unter-Containern** (6.1). Unterschiede entstehen nur durch **ACL, Dateninhalt und Rolle**, nie durch ein anderes Schema. |
+| AF-03 | **Ein** Org-Pod im MVP: `https://teamid.live/herford/` mit WebID `https://teamid.live/herford/profile/card#me`. Konfiguration in `config.js` als Liste mit einem Eintrag (`podUrl`, `webId`, `locationCode`), zukunftsfähig. |
+| AF-04 | Rollen stammen ausschließlich aus dem Org-Pod: aus der WebID des Org-Pods selbst und aus den Gruppendokumenten (`vcard:Group` + `vcard:hasMember`), nie aus dem eigenen Profil des Nutzers. |
 | AF-05 | **Hybrid:** Bescheid-PDF und das Original der Buchung liegen im Gast-Pod. Der Org-Pod hält nur Referenzen und Ergebnisse. |
 | AF-06 | Vokabular: `https://serverproject.de/solid-tafel/ns.ttl#` (Hash-Namespace), `tafel:Appointment` ist ein `schema:Event`. |
 | AF-07 | Gruppendokumente sind **öffentlich lesbar**, schreiben darf nur Admin. |
-| AF-08 | Der erste Admin wird **manuell** eingetragen (Henne-Ei-Problem). |
+| AF-08 | **Vertrauensanker ist der Besitzer des Org-Pods.** Seine WebID (`ORG_WEBID`) ist **automatisch Admin**, weil sie den Pod besitzt und in jeder ACL des Org-Pods `Control` hat. Weitere Admins trägt der Besitzer **als Daten** in `staff/admins.ttl` ein. Der erste Admin braucht also keinen Eintrag und ist nicht in der Rollenlogik „fest verdrahtet“; fest steht nur die Identität des Org-Pods in `config.js`. |
 | AF-09 | Verifizierungsergebnisse werden **6 Monate** aufbewahrt. |
 | AF-10 | Ein Pod ist Voraussetzung für Gäste; die App bietet nur den Link „Get a Pod“. |
 | AF-11 | Keine Transaktionen: Kapazität wird durch Bestätigung durch Staff gesichert, nicht durch Sperren. |
 | AF-12 | Rollenermittlung ist **fail-open**: Bei Fehlern gilt man als Gast (niedrigste Rechte). |
 | AF-13 | Kein Build-Schritt. JavaScript-Module über `<script type="module">`, Bibliotheken als Dateien (siehe NFA-01). |
+| AF-14 | **Inhalte aus Eingängen sind nicht vertrauenswürdig.** Alles, was Gäste in `bookings/` oder `submissions/` des Org-Pods anhängen (Texte, URLs), und alle Dateien in Gast-Pods wird wie Fremdeingabe behandelt (FA-V8, FA-D2, FA-V2). |
 
 ---
 
@@ -227,8 +245,8 @@ Diese Präfixe gelten für alle Beispiele in diesem Dokument:
 ```turtle
 <#this> a tafel:BookingReference ;
     tafel:forAppointment <https://teamid.live/herford/solid-tafel/appointments/2026-11-04-1000.ttl#this> ;
-    tafel:bookedBy <https://alice.example/profile/card#me> ;
-    tafel:bookingResource <https://alice.example/solid-tafel/bookings/3f2a.ttl#this> ;
+    tafel:bookedBy <https://teamid.live/tafel_test/profile/card#me> ;
+    tafel:bookingResource <https://teamid.live/tafel_test/solid-tafel/bookings/3f2a.ttl#this> ;
     tafel:bookingStatus tafel:requested ;
     dcterms:created "2026-10-20T09:15:02Z"^^xsd:dateTime .
 ```
@@ -237,8 +255,8 @@ Diese Präfixe gelten für alle Beispiele in diesem Dokument:
 
 ```turtle
 <#this> a tafel:DocumentSubmission ;
-    tafel:forPerson <https://alice.example/profile/card#me> ;
-    tafel:forDocument <https://alice.example/solid-tafel/documents/bescheid-20261020T091500Z.pdf> ;
+    tafel:forPerson <https://teamid.live/tafel_test/profile/card#me> ;
+    tafel:forDocument <https://teamid.live/tafel_test/solid-tafel/documents/bescheid-20261020T091500Z.pdf> ;
     dcterms:created "2026-10-20T09:15:03Z"^^xsd:dateTime .
 ```
 
@@ -246,10 +264,10 @@ Diese Präfixe gelten für alle Beispiele in diesem Dokument:
 
 ```turtle
 <#this> a tafel:Verification ;
-    tafel:forPerson <https://alice.example/profile/card#me> ;
-    tafel:forDocument <https://alice.example/solid-tafel/documents/bescheid-20261020T091500Z.pdf> ;
+    tafel:forPerson <https://teamid.live/tafel_test/profile/card#me> ;
+    tafel:forDocument <https://teamid.live/tafel_test/solid-tafel/documents/bescheid-20261020T091500Z.pdf> ;
     tafel:verificationStatus tafel:verified ;
-    tafel:verifiedBy <https://bob.example/profile/card#me> ;
+    tafel:verifiedBy <https://teamid.live/tafel_staff/profile/card#me> ;
     tafel:verifiedOn "2026-10-21"^^xsd:date ;
     tafel:validUntil "2027-04-21"^^xsd:date .
 ```
@@ -258,8 +276,8 @@ Diese Präfixe gelten für alle Beispiele in diesem Dokument:
 
 ```turtle
 <#staff> a vcard:Group ;
-    vcard:hasMember <https://bob.example/profile/card#me> ,
-                    <https://carol.example/profile/card#me> .
+    vcard:hasMember <https://teamid.live/tafel_staff/profile/card#me> ,
+                    <https://staff2.example/profile/card#me> .
 ```
 
 > **Lernhinweis Zeitzone:** Zeiten immer mit Offset speichern (`+01:00` im Winter, `+02:00` im Sommer) und zur Anzeige mit `toLocaleString('de-DE', { timeZone: 'Europe/Berlin' })` formatieren. Nie „nackte“ Zeiten ohne Zeitzone speichern, sonst verschieben sich Termine bei der Sommerzeit-Umstellung.
@@ -272,31 +290,42 @@ Das bestehende `ns.ttl` v0.3 reicht nicht aus. Es braucht **additive** Ergänzun
 
 ## 6. Zugriffskonzept
 
-### 6.1 Aufbau des Org-Pods (Herford)
+### 6.1 Einheitlicher Aufbau jedes Pods
+
+Jeder Pod (Org-/Admin-Pod, Staff-Pod, Gast-Pod) bekommt **denselben** Container-Satz. Nicht benötigte Container werden **gar nicht erst angelegt** (erst beim ersten Schreiben) und sind bis dahin privat (Standard-ACL des Eigentümers).
 
 ```
-{ORG_POD}/solid-tafel/
-├── appointments/     Zeitfenster (öffentlich lesbar)
-├── bookings/         Buchungsreferenzen (Eingang für Gäste: nur Anhängen)
-├── submissions/      Einreichungen von Bescheiden (Eingang für Gäste: nur Anhängen)   ← NEU
-├── verifications/    Prüfergebnisse
-├── staff/
-│   ├── admins.ttl    vcard:Group  <#admins>
-│   └── herford.ttl   vcard:Group  <#staff>
-└── profile/          Einstellungen des Standorts (im MVP optional)
+{POD}solid-tafel/
+├── profile/          Einstellungen des Pod-Besitzers (im MVP optional)
+├── documents/        Dateien, die der Besitzer hält (Gast: Bescheid-PDFs)
+├── bookings/         Gast-Pod: eigene Buchungen (Originale) · Org-Pod: Buchungsreferenzen (Eingang)
+├── appointments/     Org-Pod: Zeitfenster (öffentlich lesbar)
+├── submissions/      Org-Pod: Einreichungen von Bescheiden (Eingang)
+├── verifications/    Org-Pod: Prüfergebnisse
+└── staff/
+    ├── admins.ttl    vcard:Group  <#admins>   (Org-Pod)
+    └── herford.ttl   vcard:Group  <#staff>    (Org-Pod; Dateiname = Standortcode)
 ```
 
-### 6.2 Aufbau des Gast-Pods
+### 6.2 Wer nutzt welchen Container?
 
-```
-{GAST_POD}/solid-tafel/
-├── bookings/         eigene Buchungen (Originale)
-└── documents/        eigene Bescheide (PDF, unveränderliche Dateinamen)
-```
+| Container | Org-/Admin-Pod (`https://teamid.live/herford/`) | Staff-Pod | Gast-Pod (z. B. `https://teamid.live/tafel_test/`) |
+|---|---|---|---|
+| `profile/` | optional (Standort-Einstellungen) | – | – (im MVP; `tafel:homeLocation` erst mit dem zweiten Org-Pod) |
+| `documents/` | – | – | Bescheid-PDFs |
+| `bookings/` | `tafel:BookingReference` (Eingang) | – | `tafel:Booking` (Originale) |
+| `appointments/` | `tafel:Appointment` | – | – |
+| `submissions/` | `tafel:DocumentSubmission` (Eingang) | – | – |
+| `verifications/` | `tafel:Verification` | – | – |
+| `staff/` | Gruppendokumente | – | – |
 
-Ein `profile/`-Container im Gast-Pod ist im MVP **nicht nötig**. Es gibt nur einen Standort. Die Zuordnung zu einem Standort (`tafel:homeLocation`) wird erst mit dem zweiten Org-Pod eingeführt.
+Ein **Staff-Pod** nutzt im MVP **keinen** Container: Die Staff-Rolle liegt in der Staff-Liste des Org-Pods, nicht im Pod der Person. Dasselbe gilt für weitere Admins.
+
+Derselbe Container-Name kann in verschiedenen Pods verschiedene Datensätze enthalten (`bookings/`). Das ist gewollt: Der Name sagt, **worum** es geht; ACL und Datensatztyp sagen, **wem** er gehört.
 
 ### 6.3 Berechtigungsmatrix Org-Pod
+
+Die Matrix beschreibt einen Pod **in der Rolle des Org-Pods**. Alle anderen Pods verwenden die ACLs aus 6.4; ihre übrigen Container bleiben ungenutzt und privat.
 
 | Container | Öffentlich | Eingeloggt (Gast) | Staff | Admin |
 |---|---|---|---|---|
@@ -317,7 +346,7 @@ Ein `profile/`-Container im Gast-Pod ist im MVP **nicht nötig**. Es gibt nur ei
 
 ### 6.4 Berechtigungen im Gast-Pod (nach Freigabe)
 
-| Container | Gast (Eigentümer) | Staff-Gruppe und Admin-Gruppe | Alle anderen |
+| Container | Gast (Eigentümer) | Staff-Gruppe, Admin-Gruppe und Org-WebID | Alle anderen |
 |---|---|---|---|
 | `documents/` | Lesen, Schreiben, Kontrolle | **Lesen** (nur nach Freigabe, widerrufbar) | – |
 | `bookings/` | Lesen, Schreiben, Kontrolle | **Lesen** (nur nach Freigabe, widerrufbar) | – |
@@ -330,11 +359,12 @@ Die **Freigabe** ist eine bewusste Handlung des Gastes (FA-D3). Ohne sie kann St
 
 ```turtle
 <#owner> a acl:Authorization ;
-    acl:agent <https://alice.example/profile/card#me> ;
+    acl:agent <https://teamid.live/tafel_test/profile/card#me> ;
     acl:accessTo <./> ; acl:default <./> ;
     acl:mode acl:Read, acl:Write, acl:Control .
 
 <#tafel-staff> a acl:Authorization ;
+    acl:agent <https://teamid.live/herford/profile/card#me> ;
     acl:agentGroup <https://teamid.live/herford/solid-tafel/staff/herford.ttl#staff> ,
                    <https://teamid.live/herford/solid-tafel/staff/admins.ttl#admins> ;
     acl:accessTo <./> ; acl:default <./> ;
@@ -389,7 +419,7 @@ Die **Freigabe** ist eine bewusste Handlung des Gastes (FA-D3). Ohne sie kann St
     acl:mode acl:Read, acl:Write, acl:Control .
 
 <#person> a acl:Authorization ;
-    acl:agent <https://alice.example/profile/card#me> ;
+    acl:agent <https://teamid.live/tafel_test/profile/card#me> ;
     acl:accessTo <9d3e.ttl> ;
     acl:mode acl:Read .
 ```
@@ -398,13 +428,17 @@ Die Vorlagen sind **Entwürfe**. Ob die Ziel-CSS-Version sie genau so auswertet 
 
 ### 6.6 Einrichtung des Org-Pods (einmalig, manuell)
 
-1. Pod/Account „herford“ auf dem Server anlegen; WebID notieren (z. B. `https://teamid.live/herford/profile/card#me`).
-2. Container `solid-tafel/` mit den Unter-Containern aus 6.1 anlegen.
-3. Gruppendokumente `staff/admins.ttl` (`<#admins>`) und `staff/herford.ttl` (`<#staff>`) anlegen. **Den ersten Admin eintragen.**
-4. ACL-Dateien setzen: Vorlage (b) für `bookings/` und `submissions/`; `verifications/` wie (b) aber ohne `guests-append`; `appointments/` öffentlich lesbar; `staff/` öffentlich lesbar, nur Admin schreibt.
+Der Org-Pod `https://teamid.live/herford/` besteht bereits (Abschnitt 2.3). Es fehlen die Inhalte:
+
+1. WebID prüfen: `https://teamid.live/herford/profile/card#me` ist abrufbar und liefert Turtle.
+2. Container `solid-tafel/` mit den Unter-Containern anlegen, die der Org-Pod nutzt (`appointments/`, `bookings/`, `submissions/`, `verifications/`, `staff/`, optional `profile/`).
+3. Gruppendokumente `staff/admins.ttl` (`<#admins>`) und `staff/herford.ttl` (`<#staff>`) anlegen. **`admins.ttl` darf zunächst leer sein** (Gruppe ohne Mitglieder), weil der Besitzer der Org-WebID automatisch Admin ist (AF-08). Staff-Mitglieder werden in `herford.ttl` eingetragen.
+4. ACL-Dateien setzen: Vorlage (b) für `bookings/` und `submissions/`; `verifications/` wie (b), aber ohne `guests-append`; `appointments/` öffentlich lesbar; `staff/` öffentlich lesbar, nur Admin und Besitzer schreiben.
 5. Gruppendokumente **ohne Anmeldung** abrufbar? (`curl` ohne Header) → muss `200` liefern.
 6. Testlauf mit den Testkonten aus T-0.3 (Sicherheitstests, Abschnitt 11.6).
 7. Schritte als `doc/runbook-org-pod.md` festhalten.
+
+> **Wer meldet sich als Org-Pod-Besitzer an?** Das Konto `herford` ist ein gemeinsames Organisationskonto. Empfehlung (D-15): nur für Einrichtung und Notfälle verwenden. Im Alltag tragen Admins ihre **persönliche** WebID in `admins.ttl` ein.
 
 ---
 
@@ -414,7 +448,7 @@ Die Vorlagen sind **Entwürfe**. Ob die Ziel-CSS-Version sie genau so auswertet 
 
 | ID | Prio | Anforderung | Akzeptanzkriterien |
 |---|---|---|---|
-| FA-K1 | M | **Zentrale Konfiguration** in `config.js`: Org-Pod-URL(s), Namespace-URL, Standortcode, Gruppen-URLs, Dateigrößenlimit. | Alle URLs stehen nur dort. Wechsel der Org-Pod-URL = Änderung an genau einer Stelle. Org-Pods als Liste mit einem Eintrag. |
+| FA-K1 | M | **Zentrale Konfiguration** in `config.js`: Org-Pods (je `podUrl`, `webId`, `locationCode`), Namespace-URL, Dateigrößenlimit; Gruppen-URLs werden daraus abgeleitet. | Alle URLs stehen nur dort (Skizze in 11.2). Wechsel der Org-Pod-URL = Änderung an genau einer Stelle. Org-Pods als Liste mit einem Eintrag. `podUrl` endet mit `/`. |
 | FA-K2 | M | **Pod-Zugriffsschicht** `pod.js`: lesen (Turtle), schreiben (Turtle), anhängen (`POST`), Binärdatei schreiben, Binärdatei lesen (Blob), löschen, Container auflisten. | Kein `fetch` im UI-Code. Fehler (401, 403, 404, 409, 412, 5xx, Netzwerk) werden in verständliche Fehlerobjekte übersetzt. „404 beim Lesen“ ist „nicht vorhanden“, kein Fehler. |
 | FA-K3 | M | **Deutsche Oberfläche.** Alle sichtbaren Texte in `strings.de.js`. | Kein deutscher Text im Code verstreut. Datum und Uhrzeit in `de-DE`, Zeitzone `Europe/Berlin`. |
 | FA-K4 | M | **Einheitliche Rückmeldung:** Laden, Erfolg, Fehler. | Jede Aktion zeigt einen Ladezustand. Fehler sind für Gäste ohne technische Details formuliert, technische Details nur in der Konsole. Aktionsbuttons sind während des Ablaufs deaktiviert (kein Doppelklick-Problem). |
@@ -424,10 +458,10 @@ Die Vorlagen sind **Entwürfe**. Ob die Ziel-CSS-Version sie genau so auswertet 
 
 | ID | Prio | Anforderung | Akzeptanzkriterien |
 |---|---|---|---|
-| FA-R1 | M | **Rollenermittlung nach dem Login.** Die App liest `staff/admins.ttl` und `staff/herford.ttl` des Org-Pods und prüft `vcard:hasMember`. | Ergebnis: `admin` vor `staff` vor `consumer`. WebID-Vergleich exakt. Die Rolle wird **nie** aus `localStorage` übernommen. |
+| FA-R1 | M | **Rollenermittlung nach dem Login.** (1) Ist die WebID gleich `ORG_WEBID`, ist sie `admin` (ohne Netzabruf). (2) Sonst liest die App `staff/admins.ttl` und `staff/herford.ttl` des Org-Pods und prüft `vcard:hasMember`. | Ergebnis: `admin` vor `staff` vor `consumer`. WebID-Vergleich exakt. Die Rolle wird **nie** aus `localStorage` übernommen. Test: Login mit `https://teamid.live/herford/profile/card#me` ergibt `admin`, auch bei leerer `admins.ttl`. |
 | FA-R2 | M | **Fail-open.** | 404 oder Netzfehler beim Lesen einer Gruppe = „nicht Mitglied“. Zusätzlich erscheint ein Hinweis „Rolle konnte nicht sicher bestimmt werden“ (damit sich Staff nicht wundert, wenn Funktionen fehlen). |
 | FA-R3 | M | **Rollen-Symbol** im Kopfbereich (Symbol **und** Text). | Gast, Mitarbeiter, Admin sind unterscheidbar, auch ohne Farbe. |
-| FA-R4 | M | **Staff-Pflege manuell** (Betriebsanleitung, kein Code). | `doc/runbook-org-pod.md` beschreibt: Staff aufnehmen, entfernen, Admin wechseln. |
+| FA-R4 | M | **Staff- und Admin-Pflege manuell** (Betriebsanleitung, kein Code). | `doc/runbook-org-pod.md` beschreibt: Staff aufnehmen, entfernen, weiteren Admin eintragen, Zugang zum Organisationskonto verwalten (D-15). |
 | FA-R5 | M | **Menüs je Rolle** (nur Bequemlichkeit, keine Sicherheit). | Siehe Abschnitt 9. Direkte Aufrufe ohne Berechtigung scheitern an der ACL. |
 | FA-R6 | S | Rolle neu laden ohne Neuanmeldung. | Schaltfläche „Rolle neu prüfen“. |
 
@@ -460,8 +494,8 @@ Die Vorlagen sind **Entwürfe**. Ob die Ziel-CSS-Version sie genau so auswertet 
 | ID | Prio | Anforderung | Akzeptanzkriterien |
 |---|---|---|---|
 | FA-D1 | M | **PDF hochladen (Create).** | Nur `application/pdf`; zusätzlich Prüfung der ersten Bytes (`%PDF-`); höchstens 10 MB (konfigurierbar). Der Dateiname wird **erzeugt**: `bescheid-<UTC-Zeitstempel>.pdf`, der Originalname fließt nicht in die URL. Schreiben per `PUT` mit `Content-Type: application/pdf` nach `documents/`. Fehlt der Container, wird er angelegt. |
-| FA-D2 | M | **Eigene Dokumente anzeigen, ansehen, löschen.** | Liste (neueste zuerst) mit Datum und Status. „Ansehen“ lädt das PDF per authentifiziertem `fetch` als Blob (**nicht** über einen einfachen Link, siehe Lernhinweis). „Löschen“ mit Rückfrage. |
-| FA-D3 | M | **Freigabe an die Tafel erteilen und widerrufen.** | Erklärtext in einfacher Sprache (wer darf was sehen, wie lange, wie widerrufen). Schreibt die ACL (a) für `documents/` und `bookings/`. Zustand „Freigabe aktiv“ wird aus der ACL gelesen (nicht aus einem Merker). **Selbstaussperr-Schutz:** nach dem Schreiben prüfen, dass der Eigentümer `Control` hat, sonst Abbruch/Rückbau. Widerruf entfernt die Gruppen-Autorisierung. |
+| FA-D2 | M | **Eigene Dokumente anzeigen, ansehen, löschen.** | Liste (neueste zuerst) mit Datum und Status. „Ansehen“ lädt das PDF per authentifiziertem `fetch` als Blob (**nicht** über einen einfachen Link, siehe Lernhinweis). Der Blob-Typ wird **fest auf `application/pdf` gesetzt** (nicht den vom Server gemeldeten Typ übernehmen), und die ersten Bytes (`%PDF-`) werden vor dem Öffnen geprüft. „Löschen“ mit Rückfrage. |
+| FA-D3 | M | **Freigabe an die Tafel erteilen und widerrufen.** | Erklärtext in einfacher Sprache (wer darf was sehen, wie lange, wie widerrufen). Schreibt die ACL (a) für `documents/` und `bookings/` (Lesezugriff für Staff-Gruppe, Admin-Gruppe **und die Org-WebID**, weil deren Besitzer automatisch Admin ist). Zustand „Freigabe aktiv“ wird aus der ACL gelesen (nicht aus einem Merker). **Selbstaussperr-Schutz:** nach dem Schreiben prüfen, dass der Eigentümer `Control` hat, sonst Abbruch/Rückbau. Widerruf entfernt die Gruppen-Autorisierung. |
 | FA-D4 | M | **Einreichung melden.** | Nach dem Upload (und aktiver Freigabe) per `POST` ein `tafel:DocumentSubmission` nach `submissions/` im Org-Pod. Ohne Freigabe: Upload bleibt erhalten, die App führt zur Freigabe und bietet „Jetzt einreichen“ an. |
 | FA-D5 | M | **Prüfstatus für den Gast.** | Anzeige nach 5.2. Liest das Ergebnis aus `verifications/`; Antwort `403/404` bedeutet „In Prüfung“. Bei `verified` wird „gültig bis“ angezeigt. |
 | FA-D6 | M | **Neues Dokument ersetzt altes.** | Dateien sind unveränderlich (neuer Name je Upload); die neueste Einreichung zählt (5.2). Ein neuer Upload setzt den Anzeigestatus automatisch auf „In Prüfung“, weil das Ergebnis auf ein anderes Dokument verweist. |
@@ -473,12 +507,13 @@ Die Vorlagen sind **Entwürfe**. Ob die Ziel-CSS-Version sie genau so auswertet 
 | ID | Prio | Anforderung | Akzeptanzkriterien |
 |---|---|---|---|
 | FA-V1 | M | **Liste eingereichter Bescheide.** | Liest `submissions/` und `verifications/`; je Person zählt die neueste Einreichung. Filter, Standard: „Zu prüfen“ (ohne Ergebnis oder `pending`). |
-| FA-V2 | M | **Dokument ansehen.** | Wie FA-D2 per Blob. Bei `403` (keine Freigabe oder widerrufen) erscheint ein verständlicher Hinweis. |
+| FA-V2 | M | **Dokument ansehen.** | Wie FA-D2 per Blob **mit fest gesetztem Typ und Kopfbyte-Prüfung**. Ist die Datei kein PDF, wird sie **nicht geöffnet** und Staff sieht eine Warnung. Bei `403` (keine Freigabe oder widerrufen) erscheint ein verständlicher Hinweis. |
 | FA-V3 | M | **Status setzen** (`verified` / `pending` / `rejected` / `expired`). | Eingaben: Status, „gültig bis“ (Vorgabe bei `verified`: Prüfdatum + 6 Monate, Staff darf kürzen), optionale kurze Notiz (höchstens 200 Zeichen, Hinweis „keine sensiblen Daten“). Schreibt `verifications/<uuid>.ttl` (ein Ergebnis pro Dokument, bei Änderung `If-Match`) **und** die Einzel-ACL (6.5 c), damit der Gast es lesen kann. |
 | FA-V4 | M | **Anzeigestatus-Regel** (5.2) als **eine** wiederverwendbare Funktion mit Tests. | Wird in Gästeansicht, Anfragenliste, Tagesliste und Bescheid-Liste identisch verwendet. **Ampel:** Symbol **und** Text, nicht nur Farbe. |
 | FA-V5 | M | **Protokollfelder automatisch.** | `verifiedBy` = WebID der Sitzung, `verifiedOn` = heutiges Datum. Nicht von Hand änderbar. |
 | FA-V6 | S | **Aufräumen** (Admin): Ergebnisse nach Ablauf der Aufbewahrung löschen. | Schaltfläche „Abgelaufene Ergebnisse löschen“ mit Vorschau und Bestätigung (siehe D-07). |
 | FA-V7 | K | **Dokument-Hash** im Ergebnis (SHA-256), um nachträgliches Überschreiben zu erkennen. | Verhindert, dass ein Gast die Datei nach der Prüfung heimlich austauscht. Im MVP reichen unveränderliche Dateinamen (FA-D6) als Konvention. |
+| FA-V8 | M | **Verweise aus Eingängen prüfen**, bevor die App sie abruft (`tafel:forDocument`, `tafel:bookingResource`). | Nur `https`; **gleicher Ursprung (Origin)** wie die WebID in `tafel:forPerson` bzw. `tafel:bookedBy`; Pfad enthält `/solid-tafel/documents/` bzw. `/solid-tafel/bookings/`. Andernfalls wird der Eintrag mit Warnung übersprungen und **nicht abgerufen**. Begründung: Die angemeldete Abfrage der Staff-Sitzung darf nicht auf frei gewählte fremde Adressen gelenkt werden. |
 
 ---
 
@@ -582,7 +617,7 @@ Mi, 04.11.2026   10:00–12:00 Uhr     Bestätigt: 28 von 40
 |---|---|---|
 | NFA-01 | M | **Datenschutz.** Bescheide enthalten sensible Sozialdaten. Vor dem Pilotbetrieb: Verantwortlichen benennen, Datenschutzbeauftragten einbeziehen, Einwilligungstext (Freigabe), Datenschutzhinweis in der App, Löschkonzept (AF-09). **Bibliotheken lokal ausliefern** (kein CDN, keine externen Schriftarten oder Stylesheets), weil jeder externe Abruf IP-Adressen an Dritte überträgt. Dies ist keine Rechtsberatung. Die rechtliche Einordnung klärt die Tafel mit ihrem Datenschutzbeauftragten. |
 | NFA-02 | M | **Datensparsamkeit.** Der Org-Pod speichert nur Referenzen und Ergebnisse, keine Dokumentkopien. |
-| NFA-03 | M | **Sicherheit der Oberfläche.** Kein `innerHTML` mit Pod-Daten, kein `eval`. Nur HTTPS. Content-Security-Policy per `.htaccess` (S). Keine Tokens oder WebIDs in der Konsole im Produktivbetrieb. Dateien werden vor dem Upload geprüft (FA-D1). |
+| NFA-03 | M | **Sicherheit der Oberfläche.** Kein `innerHTML` mit Pod-Daten, kein `eval`. Nur HTTPS. Content-Security-Policy per `.htaccess` (S). Keine Tokens oder WebIDs in der Konsole im Produktivbetrieb. Dateien werden vor dem Upload geprüft (FA-D1). Fremdinhalte (Dateien aus Gast-Pods, Verweise aus Eingängen) werden nie ungeprüft geöffnet oder abgerufen (FA-V2, FA-V8). |
 | NFA-04 | M | **Zugriffsschutz serverseitig** über ACL, nicht nur in der Oberfläche (Abschnitt 3). |
 | NFA-05 | M | **Robustheit.** Netzwerkfehler führen nie zu einer weißen Seite. Bei mehreren parallelen Abrufen: `Promise.allSettled`, ein fehlerhafter Eintrag lässt die Liste nicht scheitern. Doppelklick-Schutz. |
 | NFA-06 | M | **Kompatibilität.** Aktuelle Versionen von Firefox, Chrome, Safari (auch iOS) und Edge; Handy zuerst. |
@@ -629,6 +664,21 @@ test/                         jsdom-Regression + Unit-Tests + Integrationstests
 - **Anmeldung:** `@inrupt/solid-client-authn-browser` (derzeit 4.0.0, Update nur mit Regressionstest).
 - **RDF lesen und schreiben:** `n3` (`N3.Parser`, `N3.Writer`, `N3.Store`). Eine weitere Bibliothek (`@inrupt/solid-client`) ist **nicht nötig**, weil alle Zugriffe über die authentifizierte `fetch` laufen. Weniger Abhängigkeiten sind für einen Einsteiger leichter zu überblicken.
 - Alle Dateien liegen vor dem Pilotbetrieb **lokal** (siehe NFA-01).
+
+**Konfigurationsskizze (`config.js`):**
+
+```js
+export const ORG_PODS = [
+  {
+    locationCode: 'herford',
+    podUrl: 'https://teamid.live/herford/',                  // always ends with "/"
+    webId:  'https://teamid.live/herford/profile/card#me'    // owner of the pod = implicit admin
+  }
+];
+export const APP_ROOT = 'solid-tafel/';
+export const NS = 'https://serverproject.de/solid-tafel/ns.ttl#';
+export const MAX_PDF_BYTES = 10 * 1024 * 1024;
+```
 
 ### 11.3 Skizze der Zugriffsschicht (`pod.js`)
 
@@ -703,6 +753,10 @@ Negative Tests („Das darf **nicht** gehen“) sind genauso wichtig wie positiv
 | S-12 | Staff, aus Gruppe entfernt | liest Gast-Dokument | verweigert (**Cache des Servers beachten**) |
 | S-13 | Staff | schreibt Einzel-ACL einer Ergebnisdatei / ACL von `staff/` | erlaubt / verweigert |
 | S-14 | Gast | ändert die eigene Referenz im Org-Pod (nach `POST`) | verweigert |
+| S-15 | Gast | reicht eine Einreichung mit `forDocument` auf einen **fremden Ursprung** ein | Staff-App ruft die URL **nicht** ab (FA-V8) |
+| S-16 | Gast | legt per API eine Nicht-PDF-Datei (z. B. HTML) als `.pdf` ab | Staff-App erkennt es an den Kopfbytes und öffnet es nicht (FA-V2) |
+
+> **Hinweis:** Alle Tests, bei denen Org-Pod und Gast-Pod auf demselben Server (teamid.live) liegen, prüfen **nicht** die Auswertung über Servergrenzen. S-06 bis S-09 und S-12 müssen deshalb zusätzlich mit einem Gast-Pod auf **einem anderen Server** laufen (T-0.3, Risiko R-02).
 
 ---
 
@@ -712,9 +766,9 @@ Die Reihenfolge ist verbindlich. Versionsnummern sind ein Vorschlag nach dem bis
 
 | Meilenstein | Vorgeschlagene Version | Inhalt | Fertig, wenn … (Definition of Done) |
 |---|---|---|---|
-| **M0** Vorbereitung | – | Entscheidungen, Org-Pod einrichten, Testkonten, `ns.ttl` v0.4, Korrekturen `pod-layout.md`, lokale Testumgebung | Sicherheitstests S-01 bis S-14 gegen die geplanten ACLs bestanden; `ns.ttl` v0.4 ist live (`curl -I` zeigt `text/turtle`) |
-| **M1** Fundament, Rollen, Upload | 0.0.10 | Aufteilung in Module, `config`/`strings`/`pod`, Rollenermittlung und Symbol, PDF hochladen/anzeigen/löschen im **eigenen** Pod (keine Freigabe, keine Einreichung) | Regressionstest grün; Upload funktioniert mit einem Gast bei **einem anderen Anbieter**; Rolle wird korrekt erkannt und fällt bei nicht erreichbarem Org-Pod auf Gast zurück |
-| **M2** Freigabe und Prüfung | 0.0.11 | Freigabe (ACL), Einreichung, Staff-Liste, Dokument ansehen, Status setzen, Einzel-ACL, Statusanzeige für Gäste | S-06 bis S-09 und S-12/S-13 bestanden; ein Staff-Mitglied setzt alle vier Status, der Gast sieht jeden |
+| **M0** Vorbereitung | – | Entscheidungen, Org-Pod befüllen (der Pod besteht), Testkonten, `ns.ttl` v0.4, Korrekturen `pod-layout.md`, lokale Testumgebung | Sicherheitstests S-01 bis S-14 mit manuell gesetzten ACLs bestanden (S-15 und S-16 folgen mit der App in M2); `ns.ttl` v0.4 ist live (`curl -I` zeigt `text/turtle`) |
+| **M1** Fundament, Rollen, Upload | 0.0.10 | Aufteilung in Module, `config`/`strings`/`pod`, Rollenermittlung und Symbol, PDF hochladen/anzeigen/löschen im **eigenen** Pod (keine Freigabe, keine Einreichung) | Regressionstest grün; Upload funktioniert mit dem Test-Gast `tafel_test`; Login mit der Org-WebID ergibt `admin`, ein Test-Gast ergibt `consumer`; bei nicht erreichbarem Org-Pod bleibt die App als Gast nutzbar |
+| **M2** Freigabe und Prüfung | 0.0.11 | Freigabe (ACL), Einreichung, Staff-Liste, Dokument ansehen, Status setzen, Einzel-ACL, Statusanzeige für Gäste | S-06 bis S-09, S-12, S-13, S-15 und S-16 bestanden, **auch mit einem Gast-Pod auf einem anderen Server**; ein Staff-Mitglied setzt alle vier Status, der Gast sieht jeden |
 | **M3** Zeitfenster | 0.0.12 | Anlegen, Anzeigen, Ändern, Absagen/Löschen, ETag-Verhalten | Staff pflegt Fenster, Gast sieht sie; Test über Sommerzeit-Umstellung bestanden |
 | **M4** Buchung | 0.0.13 | Anfragen (3 Schritte mit Rückbau), Stornieren, Anfragenliste, Bestätigen/Ablehnen, Kapazität, Tagesliste, Export | Szenario „zwei Gäste, ein letzter Platz“ führt zu genau einer Bestätigung; Anzeigestatus-Tabelle (5.2) in allen vier Fällen getestet |
 | **M5** Härtung und Pilot | 0.1.0 | lokale Bibliotheken, CSP, deutsche Texte mit Herford abgestimmt, Barrierefreiheit, Handytests, Datenschutz-Check, Sicherung/Wiederherstellung, Betriebsanleitung | Abnahmeszenarien (Abschnitt 16) bestanden; Pilot mit wenigen Gästen **mit Begleitung durch Staff** |
@@ -727,10 +781,15 @@ Die Reihenfolge ist verbindlich. Versionsnummern sind ein Vorschlag nach dem bis
 
 ### M0 — Vorbereitung
 
-- [ ] **T-0.1** Entscheidungen D-01 bis D-07, D-09 und D-12 mit Herford klären (Abschnitt 14).
-- [ ] **T-0.2** Org-Pod Herford einrichten (Account/Pod, WebID) und die URL in `config.js` festlegen (D-09).
-- [ ] **T-0.3** Testkonten anlegen: 2 Gast-Pods (einer beim **gleichen**, einer bei einem **anderen** Anbieter), 2 Staff-WebIDs, 1 Admin-WebID.
-- [ ] **T-0.4** Container, Gruppendokumente und ACLs nach 6.6 einrichten; den ersten Admin eintragen.
+- [ ] **T-0.1** Entscheidungen D-01 bis D-07 und D-12 mit Herford klären; D-14 und D-15 intern entscheiden (Abschnitt 14).
+- [ ] **T-0.2** Org-Pod `https://teamid.live/herford/` prüfen (erreichbar, WebID `…/herford/profile/card#me` liefert Turtle) und die Werte in `config.js` eintragen.
+- [ ] **T-0.3** Testkonten bereitstellen (Namen neuer Konten sind Vorschläge):
+  - [ ] Org-Pod/Admin: `https://teamid.live/herford/` (vorhanden)
+  - [ ] Test-Gast 1: `https://teamid.live/tafel_test/` (vorhanden)
+  - [ ] Test-Gast 2: z. B. `https://teamid.live/tafel_test2/` (für S-01, S-14, S-15)
+  - [ ] Test-Staff: z. B. `https://teamid.live/tafel_staff/` (in `staff/herford.ttl` eintragen)
+  - [ ] Test-Gast X auf einem **anderen Server** (z. B. solidweb.org oder solidweb.me, beide von Pal betrieben) für alle Tests über Servergrenzen
+- [ ] **T-0.4** Container, Gruppendokumente und ACLs nach 6.6 einrichten (`admins.ttl` darf leer bleiben; die Org-WebID ist automatisch Admin).
 - [ ] **T-0.5** `doc/runbook-org-pod.md` schreiben (Einrichtung, Staff aufnehmen/entfernen, Admin wechseln, Sicherung).
 - [ ] **T-0.6** `ns.ttl` auf v0.4 erweitern (Anhang A), mit N3 auf Gültigkeit prüfen, hochladen, `curl -I` kontrollieren.
 - [ ] **T-0.7** `pod-layout.md` nach Anhang B korrigieren.
@@ -746,6 +805,7 @@ Die Reihenfolge ist verbindlich. Versionsnummern sind ein Vorschlag nach dem bis
   - [ ] Cache-Verhalten bei Gruppenänderungen (S-12)
 - [ ] **T-0.10** Datenschutz: Gespräch mit dem Datenschutzbeauftragten; Entwurf Einwilligungstext (Freigabe) und Datenschutzhinweis; Löschkonzept (D-07).
 - [ ] **T-0.11** Repo: `CHANGELOG.md`, Ordnerstruktur nach 11.1 anlegen.
+- [ ] **T-0.12** Falls unter `https://teamid.live/tafel_test/` noch Reste aus dem früheren Namensraum-Versuch liegen (`ns`, `ns.acl`): entfernen.
 
 ### M1 — 0.0.10: Fundament, Rollen, Upload
 
@@ -758,7 +818,7 @@ Die Reihenfolge ist verbindlich. Versionsnummern sind ein Vorschlag nach dem bis
 - [ ] **T-1.7** `documents.js`: `validatePdf` (reine Funktion + Tests), Upload, Liste, Ansehen (Blob), Löschen (FA-D1, FA-D2).
 - [ ] **T-1.8** Bildschirm „Mein Bescheid“.
 - [ ] **T-1.9** Integrationstest gegen lokale CSS: Upload, Liste, Löschen.
-- [ ] **T-1.10** Handprüfung mit Gast bei **anderem** Anbieter als dem Org-Pod.
+- [ ] **T-1.10** Handprüfung mit `tafel_test`; zusätzlich ein Upload-Versuch mit Test-Gast X auf einem **anderen Server**.
 - [ ] **T-1.11** `CHANGELOG.md`, Version 0.0.10, Regressionstest, Veröffentlichung.
 
 ### M2 — 0.0.11: Freigabe und Prüfung
@@ -768,8 +828,9 @@ Die Reihenfolge ist verbindlich. Versionsnummern sind ein Vorschlag nach dem bis
 - [ ] **T-2.3** Einreichung per `POST` (FA-D4).
 - [ ] **T-2.4** `verification.js`: `deriveDocumentStatus` (reine Funktion + Tests) (FA-V4).
 - [ ] **T-2.5** Staff-Bildschirm „Bescheide prüfen“: Liste, Dokument ansehen, Status setzen, Einzel-ACL (FA-V1 bis V3, V5).
+- [ ] **T-2.5a** Härtung: Verweise prüfen (FA-V8) und Blob mit festem Typ plus Kopfbyte-Prüfung (FA-D2, FA-V2), jeweils mit Tests.
 - [ ] **T-2.6** Gast: Statusanzeige (FA-D5, FA-D6).
-- [ ] **T-2.7** Sicherheitstests S-01, S-05 bis S-09, S-12, S-13 gegen die echte Konfiguration; Ergebnisse in `doc/test-findings.md`.
+- [ ] **T-2.7** Sicherheitstests S-01, S-05 bis S-09, S-12, S-13, S-15, S-16 gegen die echte Konfiguration, **auch mit Test-Gast X auf anderem Server**; Ergebnisse in `doc/test-findings.md`.
 - [ ] **T-2.8** Datenschutzhinweis und Einwilligungstext in die App.
 - [ ] **T-2.9** Handprüfung: Gast lädt hoch, Staff setzt alle vier Status, Gast sieht sie.
 - [ ] **T-2.10** Version 0.0.11, Veröffentlichung.
@@ -822,11 +883,13 @@ Die Reihenfolge ist verbindlich. Versionsnummern sind ein Vorschlag nach dem bis
 | **D-06** | Wie bekommt der Gast Lesezugriff auf Ergebnisse im Org-Pod? | (a) Staff hat `Control` über Inhalte und schreibt Einzel-ACLs. (b) Staff schreibt Ergebnis-Mitteilungen in einen Eingang im Gast-Pod. | **(a)**: ein Wahrheitsort im Org-Pod. Nachteil: Staff kann Zugriffe weiter öffnen. Bei vertrauenswürdigem Personal vertretbar. | M2 |
 | **D-07** | Aufbewahrung: Was heißt „6 Monate“ genau, und wer löscht? | Frist ab Prüfdatum; Gültigkeit = dieselben 6 Monate (Staff darf kürzen); Löschung per Admin-Schaltfläche (FA-V6) oder externem Skript | Frist ab Prüfdatum bestätigen. **Anzeige „Abgelaufen“ bleibt bis zum Aufräumen**, danach „Kein gültiger Bescheid“. Manuelles Aufräumen im MVP. | M2, M5 |
 | **D-08** | Aufteilung in Module? | (a) weiter `index.html` + `tlogic.js`. (b) Module nach 11.1. | **(b)**. Mit Schreibzugriffen ist eine einzelne Datei kaum noch überschaubar. | M1 |
-| **D-09** | Endgültige Org-Pod-URL | `https://teamid.live/herford/` oder `https://herford.meisdata.io/` | Beides funktioniert, weil URLs nur in `config.js` stehen. | M0 |
+| ~~**D-09**~~ | ~~Endgültige Org-Pod-URL~~ | **Entschieden:** `https://teamid.live/herford/`, WebID `https://teamid.live/herford/profile/card#me` | – | – |
 | **D-10** | Wie kommen Gäste an einen Pod? | (a) Selbst über „Get a Pod“ (festgelegt). (b) Tafel richtet Pods ein (teamid.live wird bereits betrieben). | **(a)** laut Festlegung, aber für den Pilot **(b) als Hilfe durch Staff** erwägen (Risiko R-01). | M5 |
 | **D-11** | Anrede in der Oberfläche | Du oder Sie | Mit Herford klären. | M5 |
 | **D-12** | Welche Dateiformate beim Bescheid? | (a) nur PDF (wie gefordert). (b) zusätzlich JPEG/PNG. | Viele Gäste haben nur ein **Handyfoto** des Bescheids. Empfehlung: im MVP PDF, mit Herford klären, ob Fotos zugelassen werden (kleine Erweiterung in `validatePdf`). | M1 |
 | **D-13** | Hinweis auf Rechtsgrundlage und Verantwortlichen | Verantwortliche Stelle (z. B. Tafel-Träger), Einwilligung, Auftragsverarbeitung (Hoster) | Organisatorisch mit dem Datenschutzbeauftragten, kein Codeproblem. | M5 |
+| **D-14** | Dateiname der Staff-Liste | (a) `staff/herford.ttl` (Standortcode, wie bisher festgelegt). (b) `staff/staff.ttl` (in jedem Org-Pod gleich). | **(a)** beibehalten; der Name wird aus `locationCode` abgeleitet. (b) passt besser zu „alle Pods gleich“ und ist später ohne Datenverlust änderbar. | M0 |
+| **D-15** | Wer meldet sich als Org-Pod-Besitzer (`herford`) an? | (a) Gemeinsames Organisationskonto im Alltag. (b) Nur für Einrichtung und Notfall; Admins mit persönlicher WebID in `admins.ttl`. | **(b)**: Ein geteiltes Passwort lässt sich keiner Person zuordnen (`verifiedBy`!) und schwer entziehen. | M0 |
 
 ---
 
@@ -844,14 +907,16 @@ Die Reihenfolge ist verbindlich. Versionsnummern sind ein Vorschlag nach dem bis
 | **R-08** | **Spam in den Eingängen** (jeder eingeloggte Nutzer darf anhängen). | Volle Container. | Einträge ohne gültigen Verweis ignorieren; Admin kann aufräumen; später Größen-/Mengenbegrenzung prüfen. |
 | **R-09** | **Verhalten der Serversoftware** ändert sich mit Updates. | Tests schlagen plötzlich fehl. | Sicherheitstests als Wiederholungstest vor jedem Server-Update. |
 | **R-10** | **Personalwechsel.** Staff-Liste nicht aktuell. | Ehemalige behalten Zugriff. | Runbook (FA-R4); regelmäßige Durchsicht der Liste; S-12 zeigt, wie schnell der Entzug wirkt. |
+| **R-11** | **Schadinhalte aus Eingängen:** getarnte Dateien in Gast-Pods, fremde Adressen in Einreichungen. | Ausführen von Code in der Staff-App (Diebstahl der Sitzung) oder Abrufe auf fremden Servern mit Staff-Anmeldung. | AF-14, FA-V2 (fester Blob-Typ, Kopfbyte-Prüfung), FA-V8, S-15, S-16, Content-Security-Policy. |
+| **R-12** | **Alles auf einem Server** (teamid.live für Org-Pod und Test-Gast). | Ein Ausfall betrifft alles; Tests über Servergrenzen fehlen. | Test-Gast X auf anderem Server (T-0.3); Sicherung (NFA-11). |
 
 ---
 
 ## 16. Abnahmekriterien für das MVP
 
-Alle Szenarien müssen mit **echten Testkonten** bestanden werden (Gast-Pod bei einem **anderen** Anbieter als der Org-Pod).
+Alle Szenarien müssen mit **echten Testkonten** bestanden werden (Org-Pod `herford`, Test-Gast `tafel_test`, Test-Staff). **AK-3, AK-4, AK-6, AK-10 und AK-11 zusätzlich mit einem Gast-Pod auf einem anderen Server.**
 
-- [ ] **AK-1** Ein Admin und ein Staff-Mitglied werden korrekt erkannt; ein Gast ohne Eintrag wird Gast; bei nicht erreichbarem Org-Pod bleibt die App als Gast nutzbar.
+- [ ] **AK-1** Die Org-WebID wird als Admin erkannt (auch bei leerer `admins.ttl`); ein Mitglied aus `staff/herford.ttl` als Staff; ein Gast ohne Eintrag als Gast; bei nicht erreichbarem Org-Pod bleibt die App als Gast nutzbar.
 - [ ] **AK-2** Staff legt drei Zeitfenster an, ändert eines, sagt eines ab; ein Gast sieht genau die richtigen.
 - [ ] **AK-3** Gast erteilt die Freigabe, lädt ein PDF hoch, es wird eingereicht.
 - [ ] **AK-4** Staff öffnet das PDF und setzt nacheinander `pending`, `rejected`, `verified`, `expired`; der Gast sieht jeden Status mit Symbol und Text.
@@ -860,7 +925,7 @@ Alle Szenarien müssen mit **echten Testkonten** bestanden werden (Gast-Pod bei 
 - [ ] **AK-7** Gast storniert; Staff sieht „Storniert (durch Gast)“; Kapazität steigt wieder.
 - [ ] **AK-8** Zwei Gäste fragen den letzten Platz an; Staff bestätigt einen, lehnt den anderen ab.
 - [ ] **AK-9** Tagesliste zeigt bestätigte Buchungen mit Bescheid-Ampel; Druckansicht funktioniert.
-- [ ] **AK-10** Alle Sicherheitstests S-01 bis S-14 bestanden.
+- [ ] **AK-10** Alle Sicherheitstests S-01 bis S-16 bestanden.
 - [ ] **AK-11** Nach Widerruf der Freigabe kann Staff das Dokument nicht mehr lesen.
 - [ ] **AK-12** Keine externen Abrufe beim Laden der App (Netzwerkansicht des Browsers prüfen).
 - [ ] **AK-13** Bedienbar auf einem Handy (iOS und Android), per Tastatur, ohne Farb-Abhängigkeit.
@@ -874,7 +939,7 @@ Alle Szenarien müssen mit **echten Testkonten** bestanden werden (Gast-Pod bei 
 | Begriff | Erklärung |
 |---|---|
 | **Solid / Pod** | Persönlicher Online-Datenspeicher. Jede Person (oder Organisation) hat einen eigenen Pod und bestimmt, wer was lesen darf. |
-| **WebID** | Eindeutige Web-Adresse einer Person oder Organisation, z. B. `https://alice.example/profile/card#me`. |
+| **WebID** | Eindeutige Web-Adresse einer Person oder Organisation, z. B. `https://teamid.live/tafel_test/profile/card#me`. |
 | **Org-Pod** | Pod der Tafel (hier: Herford). Enthält Zeitfenster, Referenzen, Ergebnisse, Staff-Listen. |
 | **Gast-Pod** | Pod eines Gastes (Endverbraucher). Enthält Buchungsoriginale und Bescheide. |
 | **WAC / ACL** | Zugriffsregeln (Web Access Control) in `.acl`-Dateien. Modi: Read (lesen), Write (schreiben), Append (nur hinzufügen), Control (Regeln ändern). |
@@ -916,9 +981,28 @@ Alle Szenarien müssen mit **echten Testkonten** bestanden werden (Gast-Pod bei 
 3. Gast-Pod: Freigabe gilt für **beide** Gruppen (Staff und Admin) und für `documents/` und `bookings/`.
 4. Hinweis ergänzen: Eine Einzel-ACL ersetzt die Container-Regeln vollständig; alle Berechtigten müssen neu aufgeführt werden.
 5. Buchungsmodell festschreiben: Original im Gast-Pod, Referenz im Org-Pod, Anzeigestatus nach Tabelle 5.2. Der frühere Satz „Buchungen beginnen einfach auf Seite des Org-Pods“ entfällt.
-6. Org-Pod-Domains: `herford.meisdata.io` / `bielefeld.meisdata.io` als überholt kennzeichnen; Arbeitsannahme `https://teamid.live/herford/` (final: D-09).
-7. Gast-Pod `profile/` im MVP streichen.
+6. Org-Pod-Domains: `herford.meisdata.io` / `bielefeld.meisdata.io` als überholt kennzeichnen; festgelegt ist `https://teamid.live/herford/` (WebID `…/herford/profile/card#me`).
+7. Einheitlicher Container-Satz in **allen** Pods (6.1); `profile/` bleibt in der Struktur, wird aber erst bei Bedarf angelegt.
 8. Namespace-Zeile prüfen: `https://serverproject.de/solid-tafel/ns.ttl#` ist final.
+9. Klarstellen: Der Org-Pod ist zugleich der Admin-Pod; sein Besitzer ist automatisch Admin (AF-08).
+
+## Anhang C — Prüfprotokoll Version 1.0 → 1.1
+
+Gegenprüfung unter dem Gesichtspunkt „alle Pods sind architektonisch gleich“, mit den festgelegten Konten (2.3) und der Frage nach dem ersten Admin.
+
+| Nr. | Befund in Version 1.0 | Warum das ein Problem war | Änderung in 1.1 |
+|---|---|---|---|
+| F-01 | Zwei unterschiedliche Pod-Strukturen (Org-Pod mit `profile/`, Gast-Pod ohne) widersprachen AF-02 „alle Pods gleich“. | Sonderfall für App und Betriebsanleitung. | Ein einheitlicher Container-Satz in allen Pods (6.1), Nutzungstabelle (6.2), Anhang B angepasst. |
+| F-02 | Staff-Pod kam nicht vor; „Admin“ war nur eine Liste. | Rolle wirkte wie ein Pod-Typ. | Abschnitt 3.1: Rolle = Beziehung zur Organisation; Org-Pod = Admin-Pod. |
+| F-03 | „Der erste Admin wird manuell eingetragen“ war unvollständig. | Unklar, ob fest verdrahtet; Gefahr, sich auszusperren. | AF-08, FA-R1: Org-WebID automatisch Admin; `admins.ttl` darf leer sein; D-15. |
+| F-04 | Org-Pod-URL nur Arbeitsannahme; Beispiele mit `alice.example`. | Beispiele passten nicht zu den echten Konten. | Konten festgelegt (2.3); Beispiele mit echten URLs; D-09 entschieden. |
+| F-05 | M1 und Abnahme verlangten einen Gast bei „anderem Anbieter“, alle Testkonten liegen aber auf teamid.live. | Tests auf demselben Server beweisen die Auswertung über Servergrenzen nicht. | Test-Gast X auf anderem Server (T-0.3, DoD M2, R-02, R-12). |
+| F-06 | Staff-App öffnet Gast-Dateien als Blob ohne Typprüfung. | Eine als PDF getarnte HTML-Datei könnte in der Staff-App Code ausführen (Sitzungsdiebstahl). | FA-D2/FA-V2: fester Typ `application/pdf`, Kopfbyte-Prüfung; S-16; R-11. |
+| F-07 | Staff-App ruft URLs aus Einreichungen ab, die Gäste frei wählen. | Die angemeldete Abfrage könnte auf fremde Adressen gelenkt werden. | FA-V8, AF-14, S-15. |
+| F-08 | M0-Abnahme und T-2.7 nannten unterschiedliche Testmengen. | Unklar, was wann bestanden sein muss. | M0: S-01 bis S-14 mit manuell gesetzten ACLs; S-15/S-16 mit M2. |
+| F-09 | `{ORG_POD}/solid-tafel/` war bei Schrägstrichen mehrdeutig. | Doppelte oder fehlende `/` in URLs. | `{POD}` immer mit abschließendem `/`; `podUrl` endet mit `/`. |
+| F-10 | Dateiname `staff/herford.ttl` hängt am Standort, obwohl alle Pods gleich sein sollen. | Kleine Unschärfe im Prinzip. | Bleibt (so festgelegt), als D-14 vermerkt. |
+| F-11 | Die Gast-Pod-ACL (a) nannte nur die Gruppen `staff` und `admins`. | Der automatisch als Admin erkannte Org-Besitzer (AF-08) stünde in keiner Gruppe und könnte Gast-Dokumente nicht lesen. | ACL (a), 6.4 und FA-D3 nennen zusätzlich die Org-WebID. |
 
 ---
 
