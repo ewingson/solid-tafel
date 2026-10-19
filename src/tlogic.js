@@ -1,19 +1,19 @@
 /**
- * tlogic.js — Tafel Calendar App Logic — v0.0.9
+ * tlogic.js — Tafel Calendar App Logic — v0.0.10
  *
- * OIDC auth + code + vocab + pod-layout.
+ * OIDC authentication + debug profile display.
  * Inspired by: https://github.com/ewingson/solid-note-experiment/blob/main/slogic.js
  *
- * Note on version numbering: a v0.0.7 build existed internally (the
- * changes listed below) but was never actually deployed, so it was
- * folded into v0.0.8 rather than shipped separately. v0.0.9 changes
- * NOTHING in this file functionally — the only change this release is
- * the tafel: vocabulary namespace moving to
- * https://serverproject.de/solid-tafel/ns.ttl# (see doc/ns.ttl and
- * doc/pod-layout.md). This app doesn't reference the vocabulary at all
- * yet (that starts in v0.1.0's appointment fetching), so the version
- * bump here is purely to keep index.html/tlogic.js/doc/* numbered
- * together as one release.
+ * Version history in short: v0.0.7 was never deployed (folded into v0.0.8);
+ * v0.0.9 only moved the vocabulary namespace. v0.0.10 is the first release
+ * that uses config.js:
+ *   - tlogic.js is now an ES module (<script type="module">) and loads
+ *     ./js/config.js (org pod identity). If that file is missing or invalid,
+ *     the app still works as before and shows an amber warning.
+ *   - If the logged-in WebID equals the WebID of an org pod from config.js
+ *     (the hardcoded first admin, AF-08), a small green line
+ *     "Logged in as org pod" is shown. Everybody else sees no change.
+ *   - It does NOT read staff/admins.ttl or staff/herford.ttl yet.
  *
  * Fetches and displays 7 key parameters from the user's Solid Pod:
  *   1. WebID (unique identifier)
@@ -24,7 +24,7 @@
  *   6. Storage Root
  *   7. OIDC Issuer (Pod Provider)
  *
- * Changes in this release (vs v0.0.5):
+ * Changes since v0.0.5 (all still in effect):
  *   - "Get a Pod" link on the start page (index.html)
  *   - Session is ALWAYS restored through the Inrupt library
  *     (handleIncomingRedirect). localStorage is only a hint (last WebID /
@@ -39,16 +39,16 @@
  *   - Version number lives in APP_VERSION only (shown in page via
  *     data-app-version)
  *
- * Structure decision: index.html + tlogic.js only, until pod writes arrive.
- * NEXT STEPS: see doc/pod-layout.md (role detection via staff/*.ttl,
- * appointments from /solid-tafel/appointments/).
+ * Files: index.html + tlogic.js + js/config.js (see doc/pflichtenheft.md 11.1
+ * for the planned split into more modules).
+ * NEXT STEP: read staff/admins.ttl and staff/herford.ttl for admin/staff roles.
  */
 
 // ============================================================
 // SECTION 1: CONFIGURATION & CONSTANTS
 // ============================================================
 
-const APP_VERSION = '0.0.9';
+const APP_VERSION = '0.0.10';
 const APP_NAME = 'Tafel Calendar App';
 
 // Solid RDF Predicates (URIs for profile properties)
@@ -68,6 +68,9 @@ const STORAGE_KEY_ISSUER = 'tafel_issuer';
 let currentWebId = null;
 let currentIssuer = null;
 
+// Org pods from js/config.js (filled by loadConfig(); empty if the config could not be loaded)
+let orgPods = [];
+
 // ============================================================
 // SECTION 2: DOM ELEMENT REFERENCES
 // ============================================================
@@ -82,6 +85,8 @@ const refreshButton = document.getElementById('refresh-button');
 
 const usernameEl = document.getElementById('username');
 const statusEl = document.getElementById('status');
+const orgBanner = document.getElementById('org-banner');
+const configWarning = document.getElementById('config-warning');
 
 // Debug parameters (7 fields)
 const paramWebid = document.getElementById('param-webid');
@@ -366,6 +371,35 @@ async function fetchUserProfile(webId, issuerHint) {
 // ============================================================
 
 /**
+ * findOrgPod(webId)
+ * Returns the org pod entry whose WebID is exactly this WebID, or null.
+ * (Hardcoded first admin, AF-08: the owner of the org pod is admin.)
+ */
+function findOrgPod(webId) {
+  return orgPods.find(org => org.webId === webId) || null;
+}
+
+/**
+ * updateOrgBanner(webId)
+ * Shows a small green line if the logged-in WebID is an org pod, else hides it.
+ * Text AND symbol (not only colour) so it is readable without colour vision.
+ */
+function updateOrgBanner(webId) {
+  const org = webId ? findOrgPod(webId) : null;
+  if (!org) {
+    hideOrgBanner();
+    return;
+  }
+  orgBanner.textContent = `✔ Logged in as org pod — ${org.label} (admin)`;
+  orgBanner.removeAttribute('hidden');
+}
+
+function hideOrgBanner() {
+  orgBanner.textContent = '';
+  orgBanner.setAttribute('hidden', '');
+}
+
+/**
  * updateAuthenticatedUI(profile)
  * Populates the authenticated view with the user's profile data.
  */
@@ -379,6 +413,8 @@ function updateAuthenticatedUI(profile) {
   paramPrivti.textContent = showUrl(profile.privti);
   paramStorage.textContent = showUrl(profile.storage);
   paramIssuer.textContent = showUrl(profile.issuer);
+
+  updateOrgBanner(profile.webId);
 
   loadingDiv.setAttribute('hidden', '');
   guestDiv.setAttribute('hidden', '');
@@ -394,6 +430,7 @@ function updateAuthenticatedUI(profile) {
  */
 function showGuestUI(keepStatus = false) {
   clearDebugDisplay();
+  hideOrgBanner();
   loadingDiv.setAttribute('hidden', '');
   userDiv.setAttribute('hidden', '');
   guestDiv.removeAttribute('hidden');
@@ -480,6 +517,27 @@ async function handleRefresh() {
 // ============================================================
 
 /**
+ * loadConfig()
+ * Loads ./js/config.js. Never throws: if the file is missing or invalid the
+ * app keeps working (login, profile) without the org pod check, and an amber
+ * warning is shown. A static import would instead leave the page stuck on
+ * "Initializing…" with no message.
+ */
+async function loadConfig() {
+  try {
+    const config = await import('./js/config.js');
+    orgPods = config.ORG_PODS;
+  } catch (error) {
+    orgPods = [];
+    console.error('Configuration could not be loaded:', error);
+    configWarning.textContent =
+      '⚠ Configuration (js/config.js) could not be loaded — the org pod check is switched off. (' +
+      (error && error.message ? error.message : 'unknown error') + ')';
+    configWarning.removeAttribute('hidden');
+  }
+}
+
+/**
  * main()
  * Runs on page load.
  *  1. Lets the Inrupt library finish an OIDC redirect or restore a previous
@@ -488,6 +546,8 @@ async function handleRefresh() {
  */
 async function main() {
   try {
+    await loadConfig();
+
     if (typeof solidClientAuthentication === 'undefined' || typeof N3 === 'undefined') {
       throw new Error('Could not load required libraries (CDN blocked?)');
     }

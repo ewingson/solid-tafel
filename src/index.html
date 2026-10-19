@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<!-- Tafel Calendar App — v0.0.9 — OIDC auth + code + vocab + pod-layout -->
+<!-- Tafel Calendar App — v0.0.10 — Auth + Debug Display -->
 <!-- inspired by https://github.com/ewingson/solid-note-experiment -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tafel Calendar — OIDC auth + code + vocab + pod-layout</title>
+  <title>Tafel Calendar — Auth + Debug</title>
   <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
   <style>
     body { font-family: system-ui, sans-serif; }
@@ -175,6 +175,30 @@
       object-fit: cover;
     }
 
+    /* small green line: logged in as org pod (text + symbol, not only colour) */
+    .org-banner {
+      margin: 0 0 0.75rem;
+      padding: 0.25rem 0.75rem;
+      border-left: 4px solid #1e8449;
+      background: #d4efdf;
+      color: #145a32;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .org-banner[hidden] { display: none; }
+
+    /* amber warning: js/config.js could not be loaded */
+    .config-warning {
+      margin: 0.5rem 0;
+      padding: 0.4rem 0.75rem;
+      border-left: 4px solid #d68910;
+      background: #fdebd0;
+      color: #7e5109;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .config-warning[hidden] { display: none; }
+
     code {
       background: #f5f5f5;
       padding: 0.2rem 0.4rem;
@@ -187,12 +211,14 @@
 
 <main>
 
-  <h1>Tafel Calendar App — <span data-app-version>v0.0.9</span></h1>
-  <p><em>Current iteration: OIDC auth + code + vocab + pod-layout</em></p>
+  <h1>Tafel Calendar App — <span data-app-version>v0.0.10</span></h1>
+  <p><em>Current iteration: OIDC Authentication + Debug Display</em></p>
 
   <noscript>
     <p><strong>This app needs JavaScript to log in to your Solid Pod.</strong></p>
   </noscript>
+
+  <div id="config-warning" class="config-warning" role="alert" hidden></div>
 
   <!-- ===== LOADING STATE ===== -->
   <div id="loading">
@@ -216,6 +242,8 @@
 
   <!-- ===== AUTHENTICATED STATE ===== -->
   <div id="auth-user" hidden>
+
+    <div id="org-banner" class="org-banner" role="status" hidden></div>
 
     <div class="user-hello">
       Hello, <strong id="username">User</strong>! ✨
@@ -277,7 +305,7 @@
       <img src="https://serverproject.de/solid-tafel/github_claude.png" alt="GitHub">
     </a>
     <p style="font-size: 0.8rem; color: #95a5a6;">
-      <span data-app-version>v0.0.9</span> | OIDC auth + code + vocab + pod-layout
+      <span data-app-version>v0.0.10</span> | Auth + Debug Display
     </p>
   </div>
 
@@ -290,8 +318,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@inrupt/solid-client-authn-browser@4.0.0/dist/solid-client-authn.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/n3@2.0.3/browser/n3.min.js"></script>
 
-<!-- App logic -->
-<script src="tlogic.js"></script>
+<!-- App logic (ES module; it loads ./js/config.js itself) -->
+<script type="module" src="tlogic.js"></script>
 
 </body>
 </html>
