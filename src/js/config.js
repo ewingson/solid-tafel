@@ -43,6 +43,40 @@ export const ORG_PODS = [
 export const MAX_PDF_BYTES = 10 * 1024 * 1024;                // 10 MB
 
 /**
+ * personCount: number of persons in the household the user picks up for.
+ * The user will enter it later (nothing in the app asks for it yet).
+ * It will be stored per pickup, as a whole number.
+ * `max` is only a guard against typos (a proposal, to be confirmed with Herford).
+ */
+export const PERSON_COUNT = { min: 1, max: 20 };
+
+/**
+ * validatePersonCount(input)
+ * Accepts a whole number, or a string of digits (form fields give strings).
+ * Returns { ok: true, value: <integer> } or { ok: false, error: <code> } with
+ * error one of: 'empty', 'not-a-whole-number', 'too-small', 'too-large'.
+ * Error CODES, not texts: the German texts belong into strings.de.js later.
+ */
+export function validatePersonCount(input) {
+  if (input === null || input === undefined) return { ok: false, error: 'empty' };
+  let n;
+  if (typeof input === 'number') {
+    n = input;
+  } else if (typeof input === 'string') {
+    const text = input.trim();
+    if (text === '') return { ok: false, error: 'empty' };
+    if (!/^-?[0-9]+$/.test(text)) return { ok: false, error: 'not-a-whole-number' };
+    n = Number(text);
+  } else {
+    return { ok: false, error: 'not-a-whole-number' };
+  }
+  if (!Number.isInteger(n)) return { ok: false, error: 'not-a-whole-number' };   // also NaN, Infinity, 2.5
+  if (n < PERSON_COUNT.min) return { ok: false, error: 'too-small' };
+  if (n > PERSON_COUNT.max) return { ok: false, error: 'too-large' };
+  return { ok: true, value: n };
+}
+
+/**
  * Addresses inside one org pod, derived from the entry above.
  * Nobody else builds these strings by hand (avoids missing or doubled "/").
  */
