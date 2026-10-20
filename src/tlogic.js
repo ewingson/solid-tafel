@@ -1,19 +1,21 @@
 /**
- * tlogic.js — Tafel Calendar App Logic — v0.0.10
+ * tlogic.js — Tafel Calendar App Logic — v0.0.11
  *
- * OIDC authentication + debug profile display.
+ * OIDC authentication + debug profile display + returning-user hint.
  * Inspired by: https://github.com/ewingson/solid-note-experiment/blob/main/slogic.js
  *
  * Version history in short: v0.0.7 was never deployed (folded into v0.0.8);
- * v0.0.9 only moved the vocabulary namespace. v0.0.10 is the first release
- * that uses config.js:
- *   - tlogic.js is now an ES module (<script type="module">) and loads
- *     ./js/config.js (org pod identity). If that file is missing or invalid,
- *     the app still works as before and shows an amber warning.
- *   - If the logged-in WebID equals the WebID of an org pod from config.js
- *     (the hardcoded first admin, AF-08), a small green line
- *     "Logged in as org pod" is shown. Everybody else sees no change.
- *   - It does NOT read staff/admins.ttl or staff/herford.ttl yet.
+ * v0.0.9 only moved the vocabulary namespace; v0.0.10 introduced config.js and
+ * the green line for the org pod (ES module, <script type="module">).
+ * v0.0.11 shows after login which of FOUR categories the user is in:
+ *   core admin  WebID of the org pod itself (config.js, no network needed)
+ *   admin       member of staff/admins.ttl in the org pod
+ *   staff       member of staff/<locationCode>.ttl in the org pod
+ *   normal user everybody else (end consumer with an arbitrary WebID)
+ * The group files are public and are read WITHOUT login (plain fetch). If a
+ * list cannot be read, nobody gets extra rights from it and the line turns
+ * amber and says what could not be read (fail-open, AF-12).
+ * This only decides what the interface SHOWS; real protection = pod ACLs.
  *
  * Fetches and displays 7 key parameters from the user's Solid Pod:
  *   1. WebID (unique identifier)
@@ -41,14 +43,14 @@
  *
  * Files: index.html + tlogic.js + js/config.js (see doc/pflichtenheft.md 11.1
  * for the planned split into more modules).
- * NEXT STEP: read staff/admins.ttl and staff/herford.ttl for admin/staff roles.
+ * NEXT STEP: open (see doc/pflichtenheft.md, milestone M1: document upload).
  */
 
 // ============================================================
 // SECTION 1: CONFIGURATION & CONSTANTS
 // ============================================================
 
-const APP_VERSION = '0.0.10';
+const APP_VERSION = '0.0.11';
 const APP_NAME = 'Tafel Calendar App';
 
 // Solid RDF Predicates (URIs for profile properties)
@@ -59,6 +61,10 @@ const PUBLIC_TI = "http://www.w3.org/ns/solid/terms#publicTypeIndex";
 const PRIVATE_TI = "http://www.w3.org/ns/solid/terms#privateTypeIndex";
 const STORAGE = "http://www.w3.org/ns/pim/space#storage";
 const OIDC_ISSUER = "http://www.w3.org/ns/solid/terms#oidcIssuer";
+const VCARD_HAS_MEMBER = "http://www.w3.org/2006/vcard/ns#hasMember";
+
+// Give up reading a group list after this time (milliseconds)
+const ROLE_FETCH_TIMEOUT_MS = 8000;
 
 // localStorage keys (a HINT for returning users, not a session)
 const STORAGE_KEY_WEBID = 'tafel_webid';
@@ -70,6 +76,7 @@ let currentIssuer = null;
 
 // Org pods from js/config.js (filled by loadConfig(); empty if the config could not be loaded)
 let orgPods = [];
+let orgUrlsOf = null;   // function from config.js: addresses inside one org pod
 
 // ============================================================
 // SECTION 2: DOM ELEMENT REFERENCES
@@ -370,40 +377,131 @@ async function fetchUserProfile(webId, issuerHint) {
 // SECTION 5: UI UPDATE LOGIC
 // ============================================================
 
+// ----- Roles (v0.0.11) -----------------------------------------------------
+
+const ROLE_LABELS = {
+  'core-admin': 'org pod (core admin)',
+  'admin': 'admin',
+  'staff': 'staff',
+  'user': 'normal user (end consumer)'
+};
+const ROLE_RANK = { 'core-admin': 3, 'admin': 2, 'staff': 1, 'user': 0 };
+
 /**
- * findOrgPod(webId)
- * Returns the org pod entry whose WebID is exactly this WebID, or null.
- * (Hardcoded first admin, AF-08: the owner of the org pod is admin.)
+ * classifyRole(webId, org, adminMembers, staffMembers)
+ * Pure function. Highest category wins; WebIDs are compared exactly.
  */
-function findOrgPod(webId) {
-  return orgPods.find(org => org.webId === webId) || null;
+function classifyRole(webId, org, adminMembers, staffMembers) {
+  if (webId === org.webId) return 'core-admin';
+  if (adminMembers.includes(webId)) return 'admin';
+  if (staffMembers.includes(webId)) return 'staff';
+  return 'user';
 }
 
 /**
- * updateOrgBanner(webId)
- * Shows a small green line if the logged-in WebID is an org pod, else hides it.
- * Text AND symbol (not only colour) so it is readable without colour vision.
+ * readGroupMembers(docUrl, groupIri)
+ * Reads one public group document WITHOUT login (no token is sent) and returns
+ * { members: [WebIDs], problem: null | "file: reason" }.
+ * A readable document without that group simply has no members (not a problem).
  */
-function updateOrgBanner(webId) {
-  const org = webId ? findOrgPod(webId) : null;
-  if (!org) {
-    hideOrgBanner();
-    return;
+async function readGroupMembers(docUrl, groupIri) {
+  const name = docUrl.split('/').pop();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ROLE_FETCH_TIMEOUT_MS);
+  let text;
+  try {
+    const response = await fetch(docUrl, {
+      headers: { 'Accept': 'text/turtle' },
+      credentials: 'omit',
+      cache: 'no-cache',
+      signal: controller.signal
+    });
+    if (!response.ok) return { members: [], problem: `${name}: HTTP ${response.status}` };
+    text = await response.text();
+  } catch (error) {
+    const reason = error && error.name === 'AbortError' ? 'timeout' : 'not readable';
+    return { members: [], problem: `${name}: ${reason}` };
+  } finally {
+    clearTimeout(timer);
   }
-  orgBanner.textContent = `✔ Logged in as org pod — ${org.label} (admin)`;
+  try {
+    const quads = new N3.Parser({ baseIRI: docUrl }).parse(text);
+    const members = quads
+      .filter(q => q.subject.value === groupIri && q.predicate.value === VCARD_HAS_MEMBER)
+      .map(q => q.object.value);
+    return { members, problem: null };
+  } catch (error) {
+    return { members: [], problem: `${name}: not valid Turtle` };
+  }
+}
+
+/**
+ * determineRole(webId)
+ * Returns { role, org, problems }. Never throws.
+ * 1. core admin = WebID of an org pod from config.js (no network request)
+ * 2. otherwise read admins.ttl and <location>.ttl of each org pod
+ */
+async function determineRole(webId) {
+  try {
+    if (orgPods.length === 0 || !orgUrlsOf) {
+      return { role: 'user', org: null, problems: ['configuration not loaded'] };
+    }
+    const core = orgPods.find(org => org.webId === webId);
+    if (core) return { role: 'core-admin', org: core, problems: [] };
+
+    const best = { role: 'user', org: null, problems: [] };
+    for (const org of orgPods) {
+      const urls = orgUrlsOf(org);
+      const [admins, staff] = await Promise.all([
+        readGroupMembers(urls.adminsDoc, urls.adminsGroup),
+        readGroupMembers(urls.staffDoc, urls.staffGroup)
+      ]);
+      for (const result of [admins, staff]) {
+        if (result.problem) best.problems.push(result.problem);
+      }
+      const role = classifyRole(webId, org, admins.members, staff.members);
+      if (ROLE_RANK[role] > ROLE_RANK[best.role]) {
+        best.role = role;
+        best.org = org;
+      }
+    }
+    return best;
+  } catch (error) {
+    console.error('Role check failed:', error);
+    return { role: 'user', org: null, problems: ['unexpected error'] };
+  }
+}
+
+/**
+ * showRoleBanner(roleInfo)
+ * The small line at the top of the logged-in view (element id "org-banner",
+ * name kept from v0.0.10). Green = role determined. Amber = a list could not
+ * be read, so the shown role may be too low. Text AND symbol, not only colour.
+ */
+function showRoleBanner(roleInfo) {
+  const label = ROLE_LABELS[roleInfo.role];
+  const where = roleInfo.org && roleInfo.role !== 'user' ? ` — ${roleInfo.org.label}` : '';
+  const uncertain = roleInfo.problems.length > 0;
+  orgBanner.classList.toggle('role-uncertain', uncertain);
+  orgBanner.setAttribute('data-role', roleInfo.role);
+  orgBanner.textContent = uncertain
+    ? `⚠ Role could not be fully checked (${roleInfo.problems.join('; ')}) — showing: ${label}${where}`
+    : `✔ Logged in as ${label}${where}`;
   orgBanner.removeAttribute('hidden');
 }
 
 function hideOrgBanner() {
   orgBanner.textContent = '';
+  orgBanner.classList.remove('role-uncertain');
+  orgBanner.removeAttribute('data-role');
   orgBanner.setAttribute('hidden', '');
 }
 
 /**
- * updateAuthenticatedUI(profile)
+ * updateAuthenticatedUI(profile, roleInfo)
  * Populates the authenticated view with the user's profile data.
  */
-function updateAuthenticatedUI(profile) {
+function updateAuthenticatedUI(profile, roleInfo) {
   usernameEl.textContent = profile.fn || 'User';
 
   paramWebid.textContent = showUrl(profile.webId);
@@ -414,7 +512,7 @@ function updateAuthenticatedUI(profile) {
   paramStorage.textContent = showUrl(profile.storage);
   paramIssuer.textContent = showUrl(profile.issuer);
 
-  updateOrgBanner(profile.webId);
+  showRoleBanner(roleInfo);
 
   loadingDiv.setAttribute('hidden', '');
   guestDiv.setAttribute('hidden', '');
@@ -504,7 +602,9 @@ async function handleRefresh() {
   try {
     refreshButton.setAttribute('disabled', '');
     const profile = await fetchUserProfile(currentWebId, currentIssuer);
-    updateAuthenticatedUI(profile);
+    setStatus('🔍 Checking role…', 'info');
+    const roleInfo = await determineRole(currentWebId);
+    updateAuthenticatedUI(profile, roleInfo);
   } catch (error) {
     setStatus(`❌ Refresh failed: ${error.message}`, 'error');
   } finally {
@@ -527,8 +627,10 @@ async function loadConfig() {
   try {
     const config = await import('./js/config.js');
     orgPods = config.ORG_PODS;
+    orgUrlsOf = config.orgUrls;
   } catch (error) {
     orgPods = [];
+    orgUrlsOf = null;
     console.error('Configuration could not be loaded:', error);
     configWarning.textContent =
       '⚠ Configuration (js/config.js) could not be loaded — the org pod check is switched off. (' +
@@ -572,7 +674,9 @@ async function main() {
     const profile = await fetchUserProfile(currentWebId, currentIssuer);
     currentIssuer = profile.issuer || null;
     saveSession(currentWebId, currentIssuer);
-    updateAuthenticatedUI(profile);
+    setStatus('🔍 Checking role…', 'info');
+    const roleInfo = await determineRole(currentWebId);
+    updateAuthenticatedUI(profile, roleInfo);
 
   } catch (error) {
     console.error('Initialization error:', error);

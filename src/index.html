@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Tafel Calendar App — v0.0.10 — Auth + Debug Display -->
+<!-- Tafel Calendar App — v0.0.11 — Auth + Debug Display -->
 <!-- inspired by https://github.com/ewingson/solid-note-experiment -->
 <html lang="en">
 <head>
@@ -175,7 +175,7 @@
       object-fit: cover;
     }
 
-    /* small green line: logged in as org pod (text + symbol, not only colour) */
+    /* small line after login: shows the role (green) or a warning (amber); text + symbol, not only colour */
     .org-banner {
       margin: 0 0 0.75rem;
       padding: 0.25rem 0.75rem;
@@ -184,6 +184,11 @@
       color: #145a32;
       border-radius: 4px;
       font-size: 0.85rem;
+    }
+    .org-banner.role-uncertain {
+      border-left-color: #d68910;
+      background: #fdebd0;
+      color: #7e5109;
     }
     .org-banner[hidden] { display: none; }
 
@@ -211,8 +216,8 @@
 
 <main>
 
-  <h1>Tafel Calendar App — <span data-app-version>v0.0.10</span></h1>
-  <p><em>Current iteration: OIDC Authentication + Debug Display</em></p>
+  <h1>Tafel Calendar App — <span data-app-version>v0.0.11</span></h1>
+  <p><em>First iteration: OIDC Authentication + Debug Display</em></p>
 
   <noscript>
     <p><strong>This app needs JavaScript to log in to your Solid Pod.</strong></p>
@@ -305,7 +310,7 @@
       <img src="https://serverproject.de/solid-tafel/github_claude.png" alt="GitHub">
     </a>
     <p style="font-size: 0.8rem; color: #95a5a6;">
-      <span data-app-version>v0.0.10</span> | Auth + Debug Display
+      <span data-app-version>v0.0.11</span> | Auth + Debug Display
     </p>
   </div>
 
