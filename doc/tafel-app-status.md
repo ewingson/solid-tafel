@@ -1,6 +1,6 @@
 # Tafel Calendar App (solid-tafel) — Status
 
-**Stand:** 2026-10-20 · **Live:** v0.0.11 with `config.js`, group files and `staff/.acl` deployed · **Repo:** `doc/tafel-app-status.md`
+**Stand:** 2026-10-25 · **Live:** v0.0.11 with `config.js`, group files and `staff/.acl` deployed · **Repo:** `doc/tafel-app-status.md`
 
 ## 1. Status at a glance
 
@@ -10,11 +10,11 @@
 | Vocabulary | `https://serverproject.de/solid-tafel/ns.ttl#` (v0.3), confirmed serving `text/turtle` |
 | Org pod (= admin pod) | `https://teamid.live/herford/`, WebID `https://teamid.live/herford/profile/card#me` |
 | Test consumer | `https://teamid.live/tafel_test/`, WebID `https://teamid.live/tafel_test/profile/card#me` |
-| Group files `staff/admins.ttl`, `staff/herford.ttl`, `staff/.acl` | deployed (2026-10-20) |
+| Group files `staff/admins.ttl`, `staff/herford.ttl`, `staff/.acl` | deployed (2026-10-20); all 7 security checks passed (2026-10-25) |
 | `config.js` with `personCount` | deployed (2026-10-20) |
 | Pflichtenheft v1.1 (German + English) | delivered (`doc/pflichtenheft.md`, `doc/requirements-specification.md`) |
-| Roles in the live system | implemented and deployed; NOT yet confirmed by a real login with the four test accounts (my tools cannot reach the servers; checklist in section 10) |
-| Next step | confirm the four logins (section 10), then choose the next change |
+| Roles in the live system | working: the user confirmed all four categories (core admin, admin, staff, normal user) in the live app on 2026-10-21; not independently verified by me |
+| Next step | proposed: ns.ttl v0.4 together with the pod-layout.md update (section 10); user to confirm |
 
 ## 2. Versions
 
@@ -72,7 +72,8 @@ Stack: vanilla JS + HTML, no build step, libraries from CDN (`cdn.jsdelivr.net`,
 | staff | WebID is a member of `staff/<location>.ttl` (here `herford.ttl`) | ✔ Logged in as staff — Tafel Herford |
 | normal user | any other WebID (end consumer) | ✔ Logged in as normal user (end consumer) |
 
-- Live status: code, `config.js`, both group files and `staff/.acl` are deployed. The actual result of logins as `herford`, Renate, Heike and `tafel_test` has not been reported yet; I could not check it from outside because my tools cannot reach the servers.
+- Live status: code, `config.js`, both group files and `staff/.acl` are deployed. The user confirmed on 2026-10-21 that the four role categories work in the live app (not independently verified by me); this also shows that the group files are readable by the app's plain fetch from serverproject.de.
+- Security checks for `staff/` (2026-10-25), all 7 reported as passed: anonymous read of the group files 200, anonymous write 401, `staff/.acl` 401, `solid-tafel/` 401 (private); the owner has access, an admin (Renate) can edit the lists, staff (Heike) is refused. This also shows that `acl:agentGroup` with a group document on the same server works. Not explicitly reported: that an admin is refused when opening `staff/.acl`.
 - Highest category wins; WebIDs are compared exactly.
 - The two group files are read WITHOUT login (plain fetch, credentials omitted, no cache, 8 s timeout); they are public by design.
 - Fail-open: if a list cannot be read, nobody gets extra rights from it and the line turns amber, e.g. `⚠ Role could not be fully checked (admins.ttl: HTTP 404) — showing: …`. If a group file is missing or not public, everyone except the org pod sees the amber line naming the file and the reason.
@@ -116,8 +117,8 @@ Stack: vanilla JS + HTML, no build step, libraries from CDN (`cdn.jsdelivr.net`,
 
 ## 10. Next step (not chosen yet)
 
-1. Confirm the roles in a real browser with four logins (checklist below), plus the `curl` checks (group files readable without login, anonymous write returns 401/403, owner can still write)
-2. ns.ttl v0.4 (small, additive)
+1. DONE: roles confirmed in the browser and the 7 `staff/` security checks passed (2026-10-25); the role checklist below is kept for reference
+2. Proposed next (user suggested it): ns.ttl v0.4 (small, additive) together with the pod-layout.md update, so vocabulary and pod layout stay consistent. Settle first: does `personCount` sit on `tafel:Booking` and on `tafel:BookingReference`? (proposed: both, so staff can read it without the consumer's pod)
 3. M1 remainder: module split plus pod access layer, then upload of a PDF into the user's own `solid-tafel/documents/` (no release, no submission yet)
 
 Role check, expected line per login:
@@ -148,9 +149,9 @@ Role check, expected line per login:
 
 ## 12. Risks and not yet verified
 
-- Not verified in a real browser: the role result of the four logins, the look of the role line, CORS of the plain fetch from serverproject.de to teamid.live
-- Deployed but results not reported: anonymous read of the group files, anonymous write refused on `staff/`, owner still able to write
-- Not verified on the target server (T-0.9): `POST` with `Slug` into an append-only container, relative IRIs in `POST` bodies, implicit container creation by `PUT`, ETag/`If-Match`, `acl:agentGroup` across servers, `acl:default` with only `Control`, foreign issuers, group-change caching
+- Confirmed by the user: the four role results in the live app (so the plain fetch from serverproject.de to teamid.live works). Still open: the exact look of the role line was not commented on
+- `staff/` behaviour for anonymous users, owner, admin and staff is confirmed by the user's 7 checks; an admin opening `staff/.acl` was not explicitly reported
+- Not verified on the target server (T-0.9): `POST` with `Slug` into an append-only container, relative IRIs in `POST` bodies, implicit container creation by `PUT`, ETag/`If-Match`, `acl:agentGroup` across servers (same-server evaluation is confirmed by the admin write test), `acl:default` with only `Control`, foreign issuers, group-change caching
 - Org pod and test consumer are on the same server; cross-server behaviour is untested
 - Guests need a pod: onboarding is the biggest adoption risk (pilot with staff support)
 - CDN libraries must be replaced by local files before any pilot (privacy)
