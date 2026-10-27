@@ -1,8 +1,7 @@
 # doc/ns.ttl
 #
 # Tafel Calendar App — application vocabulary
-# Status: v0.0.9 — DELIVERED (namespace relocation; no class/property
-# changes from v0.0.8, see "Namespace host history" below)
+# Status: v0.4 — additive extension of v0.3 (see "Changes in v0.4" below)
 #
 # Namespace: https://serverproject.de/solid-tafel/ns.ttl#
 # (a HASH namespace — see doc/tafel-app-status.md v0.0.9 notes for why
@@ -29,6 +28,17 @@
 #      a hosting method was found after all (static file + .htaccess
 #      AddType, see end of file). This is the version to actually use.
 #
+# Changes in v0.4 (ADDITIVE ONLY: nothing published in v0.3 is renamed or
+# deleted, because data in real pods already refers to these terms):
+#   new class     tafel:DocumentSubmission
+#   new property  tafel:forPerson, tafel:forDocument, tafel:bookedBy,
+#                 tafel:orgRecord, tafel:personCount, tafel:note
+#   widened       tafel:bookingStatus: the rdfs:domain tafel:Booking is removed so
+#                 that the property also applies to tafel:BookingReference (an
+#                 RDFS domain would otherwise make a reference look like a Booking)
+#   corrected     comments on tafel:Verification and tafel:BookingReference: a URL
+#                 REFERENCE to the document is allowed (and needed), a COPY is not
+#
 # Design decisions this file encodes (see doc/pod-layout.md for the
 # container layout and ACLs these classes are used inside of):
 #   - tafel:Appointment reuses schema:Event rather than ical:Vevent.
@@ -37,10 +47,10 @@
 #   - Staff roles are modelled with vcard:Group + vcard:hasMember (the
 #     standard lightweight Solid pattern for WebACL acl:agentGroup),
 #     NOT the heavier org: Organization Ontology.
-#   - tafel:Verification stores a RESULT only (status/date/verifier).
-#     It never stores a copy of, or a link to, the underlying document —
-#     that stays in the consumer's own pod (doc/pod-layout.md, Design B
-#     for documents). This is the hybrid approach agreed for v0.0.8.
+#   - tafel:Verification stores a RESULT only (status/date/verifier). It never
+#     stores a COPY of the underlying document; it refers to the exact document
+#     that was checked by URL (tafel:forDocument). The document itself stays in
+#     the consumer's own pod (hybrid approach, doc/pod-layout.md).
 
 @prefix tafel:  <https://serverproject.de/solid-tafel/ns.ttl#> .
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
@@ -62,7 +72,8 @@
     dcterms:description "Terms for distribution appointments, bookings and welfare-proof verification used by the solid-tafel app (Herford + Bielefeld Tafel)."@en ;
     dcterms:created "2026-10-03"^^xsd:date ;
     dcterms:source <https://github.com/ewingson/solid-tafel> ;
-    owl:versionInfo "0.3" .
+    dcterms:modified "2026-10-26"^^xsd:date ;
+    owl:versionInfo "0.4" .
 
 #################################################################
 # tafel:Appointment  —  a distribution slot
@@ -117,9 +128,12 @@ tafel:forAppointment
 
 tafel:bookingStatus
     a rdf:Property ;
-    rdfs:domain tafel:Booking ;
     rdfs:range tafel:BookingStatusCode ;
-    rdfs:label "booking status"@en .
+    rdfs:label "booking status"@en ;
+    rdfs:comment """Used on tafel:Booking (set by the consumer: requested or
+        cancelled) AND on tafel:BookingReference (set by staff: requested,
+        confirmed or cancelled). No rdfs:domain on purpose. The status shown to
+        people is derived from both (doc/pflichtenheft.md, 5.2)."""@en .
 
 tafel:BookingStatusCode a rdfs:Class ; rdfs:label "Booking status code"@en .
 tafel:requested a tafel:BookingStatusCode ; rdfs:label "Requested"@en .
@@ -132,9 +146,10 @@ tafel:BookingReference
     rdfs:comment """The SMALL record an org pod stores in its own
         /solid-tafel/bookings/ inbox, so staff can see demand without
         the org pod holding full consumer data. Contains only
-        tafel:forAppointment and tafel:bookingResource (a link back to
-        the consumer's own tafel:Booking resource, readable by the
-        relevant staff group per doc/pod-layout.md)."""@en .
+        tafel:forAppointment, tafel:bookedBy, tafel:bookingResource (a link
+        back to the consumer's own tafel:Booking resource, readable by the
+        staff groups after the consumer's release, doc/pod-layout.md),
+        tafel:bookingStatus, tafel:personCount and dcterms:created."""@en .
 
 tafel:bookingResource
     a rdf:Property ;
@@ -142,21 +157,79 @@ tafel:bookingResource
     rdfs:range rdfs:Resource ;
     rdfs:label "link to the consumer's own booking resource"@en .
 
+tafel:bookedBy
+    a rdf:Property ;
+    rdfs:domain tafel:BookingReference ;
+    rdfs:range foaf:Agent ;
+    rdfs:label "booked by"@en ;
+    rdfs:comment """WebID of the person who booked. A HINT only: any logged-in
+        user may append a reference to the org pod's inbox, so staff confirm
+        it by reading the consumer's own booking via tafel:bookingResource."""@en .
+
+tafel:orgRecord
+    a rdf:Property ;
+    rdfs:domain tafel:Booking ;
+    rdfs:range rdfs:Resource ;
+    rdfs:label "record in the org pod"@en ;
+    rdfs:comment "Link from the Booking in the consumer's pod to its tafel:BookingReference in the org pod."@en .
+
+tafel:personCount
+    a rdf:Property ;
+    rdfs:range xsd:integer ;
+    rdfs:label "number of persons"@en ;
+    rdfs:comment """Number of persons in the household the user picks up for. A
+        whole number >= 1. Used on tafel:Booking and on tafel:BookingReference
+        (so staff can read it without opening the consumer's pod). No
+        rdfs:domain on purpose. The upper limit is an app setting
+        (config.js, PERSON_COUNT.max), not part of the vocabulary."""@en .
+
+#################################################################
+# tafel:DocumentSubmission  —  "a document is ready to be checked"
+#################################################################
+# A consumer appends one of these to the org pod's /solid-tafel/submissions/
+# inbox after uploading a document into their own pod. Without it, staff
+# could not find out that anything is waiting (they cannot list other pods).
+
+tafel:DocumentSubmission
+    a rdfs:Class ;
+    rdfs:label "Document submission"@en ;
+    rdfs:comment """SMALL record in the org pod: tafel:forPerson, tafel:forDocument
+        and dcterms:created. Never the document itself."""@en .
+
+tafel:forPerson
+    a rdf:Property ;
+    rdfs:range foaf:Agent ;
+    rdfs:label "concerns person"@en ;
+    rdfs:comment """WebID of the person concerned. Used on tafel:DocumentSubmission
+        and tafel:Verification. On a submission it is only a claim by whoever
+        appended the record; staff check that tafel:forDocument lies on the same
+        origin as this WebID before fetching it (doc/pflichtenheft.md, FA-V8)."""@en .
+
+tafel:forDocument
+    a rdf:Property ;
+    rdfs:range rdfs:Resource ;
+    rdfs:label "concerns document"@en ;
+    rdfs:comment """URL of the document (a PDF in the consumer's pod). Used on
+        tafel:DocumentSubmission and tafel:Verification. Staff validate it before
+        fetching it: https only, same origin as tafel:forPerson, path contains
+        /solid-tafel/documents/."""@en .
+
 #################################################################
 # tafel:Verification  —  RESULT ONLY, never the document itself
 #################################################################
-# Lives in the org pod under /solid-tafel/verifications/, one resource
-# per consumer (or per booking — open question below). The underlying
-# Sozialhilfe-Bescheid stays in the consumer's own pod
-# (/solid-tafel/documents/) and is never copied or linked from here.
+# Lives in the org pod under /solid-tafel/verifications/, one resource per
+# checked document. The underlying Sozialhilfe-Bescheid stays in the consumer's
+# own pod (/solid-tafel/documents/); it is never COPIED here, only referenced
+# by URL (tafel:forDocument).
 
 tafel:Verification
     a rdfs:Class ;
     rdfs:label "Welfare-proof verification result"@en ;
     rdfs:comment """Stores ONLY the outcome of a staff member checking a
-        consumer's welfare proof — never the document itself and never a
-        URL to it. This is a deliberate data-minimisation choice (see
-        doc/pod-layout.md, Design B)."""@en .
+        consumer's welfare proof. It never contains a COPY of the document; it
+        refers to the exact document that was checked by URL (tafel:forDocument)
+        and to the person (tafel:forPerson). Data-minimisation choice: the
+        document stays in the consumer's own pod."""@en .
 
 tafel:verificationStatus
     a rdf:Property ;
@@ -194,6 +267,14 @@ tafel:validUntil
         deletion by staff/admin — app logic should not assume either
         until this is settled."""@en .
 
+tafel:note
+    a rdf:Property ;
+    rdfs:domain tafel:Verification ;
+    rdfs:range xsd:string ;
+    rdfs:label "note"@en ;
+    rdfs:comment """Optional short note on a verification result (at most 200
+        characters). Must not contain sensitive data."""@en .
+
 #################################################################
 # Staff groups — vcard:Group + vcard:hasMember (NOT org:)
 #################################################################
@@ -201,42 +282,45 @@ tafel:validUntil
 # exactly the shape WebACL's acl:agentGroup expects.
 #
 # Example instance (this is documentation, not part of the vocabulary
-# itself — the real group documents live at
-# https://herford.meisdata.io/solid-tafel/staff/herford.ttl etc.):
+# itself). The real group documents live in the org pod:
+#   https://teamid.live/herford/solid-tafel/staff/admins.ttl   (<#admins>)
+#   https://teamid.live/herford/solid-tafel/staff/herford.ttl  (<#staff>)
+# The WebID of the org pod itself (config.js) is automatically admin and is
+# NOT listed in a group document.
 #
 #   @prefix vcard: <http://www.w3.org/2006/vcard/ns#> .
 #   <#staff> a vcard:Group ;
-#       vcard:hasMember <https://alice.solidweb.org/profile/card#me> ,
-#                        <https://bob.solidweb.org/profile/card#me> .
+#       vcard:hasMember <https://teamid.live/heike/profile/card#me> .
 
 #################################################################
-# Decisions resolved since the first draft (doc/pod-layout.md §5)
+# Decisions resolved (doc/pflichtenheft.md v1.1, doc/pod-layout.md v0.4)
 #################################################################
-# 1. Bookings: hybrid approach confirmed (tafel:Booking in consumer
-#    pod, tafel:BookingReference in org pod).
-# 2. One org pod per location confirmed (herford.meisdata.io,
-#    bielefeld.meisdata.io — temporary domains for the concept).
-# 3. Staff WebIDs may be public in vcard:Group documents: confirmed.
-# 4. A Solid Pod is a PREREQUISITE for consumers; the app offers a
-#    "Get a Pod" link (implemented in v0.0.7/v0.0.8 index.html) rather
-#    than provisioning pods itself.
-# 5. tafel:validUntil default retention: 6 months (see above) — but
-#    see the note there: WHO/WHAT deletes after 6 months is still open.
-# 6. Admin-only settings in `profile/` of the org pod: confirmed, as
-#    proposed in doc/pod-layout.md.
+# 1. Hybrid: tafel:Booking in the consumer pod, tafel:BookingReference in the
+#    org pod; documents stay in the consumer pod.
+# 2. One org pod per location. MVP: https://teamid.live/herford/ with WebID
+#    https://teamid.live/herford/profile/card#me
+# 3. Staff WebIDs may be public in vcard:Group documents.
+# 4. A Solid pod is a PREREQUISITE for consumers ("Get a Pod" link).
+# 5. tafel:validUntil default retention: 6 months; who/what deletes after
+#    that is still open (see below).
+# 6. Admin-only settings live in profile/ of the org pod.
+# 7. All pods have the same architecture; the org WebID owns the org pod and
+#    is automatically admin.
+# 8. tafel:personCount is stored per pickup, on the booking AND on the booking
+#    reference. (Proposed and taken over without objection. Properties can be
+#    ADDED later, but never renamed, so check this before real data exists.)
 #
 #################################################################
 # Still open
 #################################################################
-# A. One tafel:Appointment per resource, or several per container
-#    (e.g. one container per day)? Affects whether tafel:Appointment
-#    needs its own identifying slug property.
+# A. One tafel:Appointment per resource, or several per container (e.g. one
+#    container per day)?
 # B. Does tafel:Booking need a cancellation reason / timestamp?
-# C. Should tafel:VerificationStatusCode distinguish "rejected" (proof
-#    checked and invalid) from "expired" (proof was once valid, time
-#    ran out)? Modelled as separate codes here; confirm this is wanted.
-# D. Automated expiry job vs manual deletion for the 6-month retention
-#    (see tafel:validUntil comment above).
+# C. Keep "rejected" and "expired" as separate verification codes?
+# D. Automated expiry job vs manual deletion for the 6-month retention.
+# E. personCount per pickup (as modelled) or once per person? Is capacity
+#    counted in bookings or in persons (affects what
+#    schema:remainingAttendeeCapacity means)?
 #
 #################################################################
 # Deploying this file on serverproject.de (plain Apache, NOT a Pod)
@@ -286,7 +370,8 @@ tafel:validUntil
 #   shows text/plain or application/octet-stream, the AddType line
 #   either isn't in effect yet or AllowOverride is blocking it.
 #
-# Verify afterwards: `curl -I https://serverproject.de/solid-tafel/ns.ttl` should
-# return 200 and `Content-Type: text/turtle` WITHOUT any authentication
-# header — if it 401s/403s for an anonymous request, the ACL isn't
-# public-read yet.
+# Verify that v0.4 is the file being served:
+#     curl -s https://serverproject.de/solid-tafel/ns.ttl | grep -c 'personCount'
+#   should print a number >= 1 (an old cached copy prints 0), and
+#     curl -s https://serverproject.de/solid-tafel/ns.ttl | grep 'versionInfo'
+#   should show "0.4".
